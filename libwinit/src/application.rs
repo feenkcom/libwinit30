@@ -65,7 +65,7 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn run(mut self) {
+    pub fn run(self) {
         let application = RunningApplication {
             receiver: self.receiver,
             windows: Default::default(),
@@ -131,7 +131,7 @@ impl RunningApplication {
 }
 
 impl ApplicationHandler for RunningApplication {
-    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {}
+    fn can_create_surfaces(&mut self, _event_loop: &dyn ActiveEventLoop) {}
 
     fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
         while let Ok(action) = self.receiver.try_recv() {
@@ -215,7 +215,7 @@ pub extern "C" fn winit_application_waker_function() -> extern "C" fn(*const c_v
 }
 
 #[no_mangle]
-pub extern "C" fn winit_application_wake(application_handle: *const c_void, event: u32) -> bool {
+pub extern "C" fn winit_application_wake(application_handle: *const c_void, _event: u32) -> bool {
     let application_handle = application_handle as *mut ValueBox<ApplicationHandle>;
     application_handle
         .with_ref_ok(|application_handle| application_handle.wake_up())
