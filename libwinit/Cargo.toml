@@ -1,0 +1,18 @@
+[package]
+name = "libwinit"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "Winit30"
+crate-type = ["cdylib"]
+
+[dependencies]
+winit = { git = "https://github.com/rust-windowing/winit.git", rev = "a0464ae83b880899b6fb5a25a2fe0d6447fd487a" }
+log = "0.4"
+env_logger = "0.11"
+parking_lot = "0.12"
+value-box = "2.3"
+
+[build-dependencies]
+cfg_aliases = "0.2"
