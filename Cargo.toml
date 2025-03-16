@@ -3,7 +3,7 @@ resolver = "2"
 
 members = [
     "libwinit",
-    "libwinit30-builder",
+    "libwinit-builder",
 ]
 
 exclude = [ "target" ]

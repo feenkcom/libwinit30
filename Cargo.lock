@@ -802,7 +802,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "libwinit-builder"
+name = "libwinit30-builder"
 version = "0.2.0"
 dependencies = [
  "shared-library-builder",
