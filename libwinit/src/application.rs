@@ -1,4 +1,6 @@
-use crate::{ApplicationAction, SemaphoreSignaller, WakeUpSignaller, WindowState};
+use crate::{
+    ApplicationAction, CreateWindowAction, SemaphoreSignaller, WakeUpSignaller, WindowHandle,
+};
 use parking_lot::Mutex;
 use std::collections::{HashMap, VecDeque};
 use std::error::Error;
@@ -10,7 +12,7 @@ use winit::application::ApplicationHandler;
 use winit::error::EventLoopError;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder, EventLoopProxy};
-use winit::window::WindowId;
+use winit::window::{Window, WindowAttributes, WindowId};
 
 pub struct ApplicationBuilder {
     event_loop_builder: EventLoopBuilder,
@@ -35,6 +37,10 @@ impl ApplicationBuilder {
         self.wakeup_signallers
             .lock()
             .push(WakeUpSignaller::new(callback, thunk));
+    }
+
+    pub fn set_semaphore_signaller(&mut self, semaphore: SemaphoreSignaller) {
+        self.semaphore_signaller = Some(semaphore);
     }
 
     pub fn build(mut self) -> Result<(Application, ApplicationHandle), EventLoopError> {
@@ -85,6 +91,17 @@ pub struct ApplicationHandle {
 }
 
 impl ApplicationHandle {
+    pub fn create_window(
+        &self,
+        window_attributes: WindowAttributes,
+        callback: impl FnOnce(WindowHandle) + 'static,
+    ) {
+        self.enqueue_action(ApplicationAction::CreateWindow(CreateWindowAction {
+            window_attributes,
+            callback: Box::new(callback),
+        }))
+    }
+
     pub fn enqueue_action(&self, action: ApplicationAction) {
         self.sender.send(action).unwrap();
         self.wake_up();
@@ -97,7 +114,7 @@ impl ApplicationHandle {
 
 pub struct RunningApplication {
     receiver: Receiver<ApplicationAction>,
-    windows: Mutex<HashMap<WindowId, WindowState>>,
+    windows: Mutex<HashMap<WindowId, (WindowHandle, Box<dyn Window>)>>,
     events: Mutex<VecDeque<WindowEvent>>,
     semaphore_signaller: Option<SemaphoreSignaller>,
     wakeup_signallers: Mutex<Vec<WakeUpSignaller>>,
@@ -115,10 +132,19 @@ impl RunningApplication {
         self.events.lock().pop_front()
     }
 
-    fn handle_action(&mut self, _event_loop: &dyn ActiveEventLoop, action: ApplicationAction) {
+    fn handle_action(&mut self, event_loop: &dyn ActiveEventLoop, action: ApplicationAction) {
         match action {
             ApplicationAction::FunctionCall(action) => {
                 unsafe { (action.callback)(action.thunk) };
+            }
+            ApplicationAction::CreateWindow(action) => {
+                if let Ok(window) = event_loop.create_window(action.window_attributes) {
+                    let window_handle = WindowHandle::from(window.as_ref());
+                    self.windows
+                        .lock()
+                        .insert(window.id(), (window_handle.clone(), window));
+                    (action.callback)(window_handle);
+                }
             }
         }
     }
@@ -183,6 +209,20 @@ pub extern "C" fn winit_application_builder_add_wakeup_signaller(
 }
 
 #[no_mangle]
+pub extern "C" fn winit_application_builder_set_semaphore_signaller(
+    application_builder: *mut ValueBox<ApplicationBuilder>,
+    semaphore_signaller: *mut ValueBox<SemaphoreSignaller>,
+) {
+    application_builder
+        .with_mut(|application_builder| {
+            semaphore_signaller.take_value().map(|signaller| {
+                application_builder.set_semaphore_signaller(signaller);
+            })
+        })
+        .log();
+}
+
+#[no_mangle]
 pub extern "C" fn winit_application_builder_build(
     application_builder: *mut ValueBox<ApplicationBuilder>,
     application_ptr: *mut *mut ValueBox<Application>,
@@ -221,6 +261,29 @@ pub extern "C" fn winit_application_wake(application_handle: *const c_void, _eve
         .with_ref_ok(|application_handle| application_handle.wake_up())
         .map(|_| true)
         .or_log(false)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_application_create_window(
+    application_handle: *mut ValueBox<ApplicationHandle>,
+    window_attributes: *mut ValueBox<WindowAttributes>,
+    semaphore_signaller: *mut ValueBox<SemaphoreSignaller>,
+    window_handle: *mut *mut ValueBox<WindowHandle>,
+) {
+    application_handle
+        .with_ref(|application_handle| {
+            window_attributes.take_value().map(|window_attributes| {
+                application_handle.create_window(window_attributes, move |window| {
+                    unsafe { *window_handle = value_box!(window).into_raw() };
+                    semaphore_signaller
+                        .with_ref_ok(|signaller| {
+                            signaller.signal();
+                        })
+                        .log();
+                })
+            })
+        })
+        .log();
 }
 
 #[cfg(test)]

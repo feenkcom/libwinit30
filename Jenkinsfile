@@ -126,25 +126,25 @@ pipeline {
                     }
                 }
 
-                stage ('Android arm64') {
-                    agent {
-                        label "${MACOS_M1_TARGET}"
-                    }
-
-                    environment {
-                        TARGET = "${ANDROID_ARM64_TARGET}"
-                        EXTENSION = "so"
-                        PATH = "$HOME/.cargo/bin:/opt/homebrew/bin:$PATH"
-                    }
-
-                    steps {
-                        sh "cargo run --package ${REPOSITORY_NAME}-builder --bin builder --release -- --target ${TARGET}"
-
-                        sh "mv target/${TARGET}/release/lib${LIBRARY_NAME}.${EXTENSION} lib${LIBRARY_NAME}-${TARGET}.${EXTENSION}"
-
-                        stash includes: "lib${LIBRARY_NAME}-${TARGET}.${EXTENSION}", name: "${TARGET}"
-                    }
-                }
+//                 stage ('Android arm64') {
+//                     agent {
+//                         label "${MACOS_M1_TARGET}"
+//                     }
+//
+//                     environment {
+//                         TARGET = "${ANDROID_ARM64_TARGET}"
+//                         EXTENSION = "so"
+//                         PATH = "$HOME/.cargo/bin:/opt/homebrew/bin:$PATH"
+//                     }
+//
+//                     steps {
+//                         sh "cargo run --package ${REPOSITORY_NAME}-builder --bin builder --release -- --target ${TARGET}"
+//
+//                         sh "mv target/${TARGET}/release/lib${LIBRARY_NAME}.${EXTENSION} lib${LIBRARY_NAME}-${TARGET}.${EXTENSION}"
+//
+//                         stash includes: "lib${LIBRARY_NAME}-${TARGET}.${EXTENSION}", name: "${TARGET}"
+//                     }
+//                 }
 
                 stage ('Windows x86_64') {
                     agent {
@@ -204,15 +204,13 @@ pipeline {
                 unstash "${LINUX_ARM64_TARGET}"
                 unstash "${MACOS_INTEL_TARGET}"
                 unstash "${MACOS_M1_TARGET}"
-                unstash "${ANDROID_ARM64_TARGET}"
+                //unstash "${ANDROID_ARM64_TARGET}"
                 unstash "${WINDOWS_AMD64_TARGET}"
                 unstash "${WINDOWS_ARM64_TARGET}"
 
                 sh "rm -rf feenk-releaser"
                 sh "curl -o feenk-releaser -LsS https://github.com/feenkcom/releaser-rs/releases/download/${FEENK_RELEASER_VERSION}/feenk-releaser-${TARGET}"
                 sh "chmod +x feenk-releaser"
-
-                sh "cbindgen --config cbindgen.toml --crate libwinit --output winit.h"
 
                 sh """
                 ./feenk-releaser \
@@ -227,10 +225,8 @@ pipeline {
                         lib${LIBRARY_NAME}-${LINUX_ARM64_TARGET}.so \
                         lib${LIBRARY_NAME}-${MACOS_INTEL_TARGET}.dylib \
                         lib${LIBRARY_NAME}-${MACOS_M1_TARGET}.dylib \
-                        lib${LIBRARY_NAME}-${ANDROID_ARM64_TARGET}.so \
                         ${LIBRARY_NAME}-${WINDOWS_AMD64_TARGET}.dll \
-                        ${LIBRARY_NAME}-${WINDOWS_ARM64_TARGET}.dll \
-                        winit.h """
+                        ${LIBRARY_NAME}-${WINDOWS_ARM64_TARGET}.dll """
             }
         }
     }

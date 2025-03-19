@@ -1,7 +1,10 @@
+use crate::WindowHandle;
 use std::os::raw::c_void;
+use winit::window::WindowAttributes;
 
 pub enum ApplicationAction {
-    FunctionCall(FunctionCallAction)
+    FunctionCall(FunctionCallAction),
+    CreateWindow(CreateWindowAction)
 }
 
 pub struct FunctionCallAction {
@@ -11,3 +14,9 @@ pub struct FunctionCallAction {
 
 unsafe impl Send for FunctionCallAction {}
 unsafe impl Sync for FunctionCallAction {}
+
+pub struct CreateWindowAction {
+    pub window_attributes: WindowAttributes,
+    pub callback: Box<dyn FnOnce(WindowHandle) + 'static>,
+}
+

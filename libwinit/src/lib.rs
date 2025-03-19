@@ -6,6 +6,7 @@ mod event_loop_builder;
 mod events;
 mod signallers;
 mod window;
+mod window_attributes;
 
 pub use actions::*;
 pub use application::*;
@@ -13,6 +14,7 @@ pub use event_loop_builder::*;
 pub use events::*;
 pub use signallers::*;
 pub use window::*;
+pub use window_attributes::*;
 
 #[macro_use]
 extern crate log;

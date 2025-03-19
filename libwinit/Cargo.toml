@@ -13,6 +13,7 @@ log = "0.4"
 env_logger = "0.11"
 parking_lot = "0.12"
 value-box = "2.3"
+string-box = "1.1"
 
 [build-dependencies]
 cfg_aliases = "0.2"
