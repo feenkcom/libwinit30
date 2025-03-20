@@ -263,8 +263,21 @@ pub extern "C" fn winit_application_wake(application_handle: *const c_void, _eve
         .or_log(false)
 }
 
+/// Run the application, must be called from a UI thread.
 #[no_mangle]
-pub extern "C" fn winit_application_create_window(
+pub extern "C" fn winit_application_run(application: *mut ValueBox<Application>) {
+    application.take_value().map(|application| {
+        application.run();
+    }).log();
+}
+
+#[no_mangle]
+pub extern "C" fn winit_application_release(application: *mut ValueBox<Application>) {
+    application.release();
+}
+
+#[no_mangle]
+pub extern "C" fn winit_application_handle_create_window(
     application_handle: *mut ValueBox<ApplicationHandle>,
     window_attributes: *mut ValueBox<WindowAttributes>,
     semaphore_signaller: *mut ValueBox<SemaphoreSignaller>,
@@ -284,6 +297,11 @@ pub extern "C" fn winit_application_create_window(
             })
         })
         .log();
+}
+
+#[no_mangle]
+pub extern "C" fn winit_application_handle_release(application_handle: *mut ValueBox<ApplicationHandle>) {
+    application_handle.release();
 }
 
 #[cfg(test)]
