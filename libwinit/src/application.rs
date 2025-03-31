@@ -168,7 +168,9 @@ impl RunningApplication {
             }
             ApplicationAction::RequestWindowSurfaceSize(action) => {
                 if let Some(handle) = self.windows.lock().get(&action.window_id) {
-                    let _ = handle.window().request_surface_size(action.surface_size);
+                    if let Some(window) = handle.window.lock().as_ref() {
+                        let _ = window.request_surface_size(action.surface_size);
+                    }
                 }
             }
         }

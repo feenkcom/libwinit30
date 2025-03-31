@@ -1,4 +1,6 @@
-use crate::{ApplicationAction, ApplicationHandle, RequestWindowSurfaceSizeAction};
+use crate::{
+    ApplicationAction, ApplicationHandle, RequestWindowSurfaceSizeAction, WinitCursorIcon,
+};
 use geometry_box::{PointBox, SizeBox};
 use parking_lot::Mutex;
 use std::os::raw::c_void;
@@ -6,13 +8,13 @@ use std::sync::Arc;
 use value_box::{ReturnBoxerResult, ValueBox, ValueBoxPointer};
 use winit::dpi::{PhysicalPosition, PhysicalSize, Size};
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
-use winit::window::{Window, WindowId};
+use winit::window::{Cursor, CursorIcon, Window, WindowId};
 
 #[derive(Debug, Clone)]
 pub struct WindowHandle {
     id: WindowId,
     data: Arc<Mutex<WindowData>>,
-    window: Arc<dyn Window>,
+    pub(crate) window: Arc<Mutex<Option<Box<dyn Window>>>>,
     application_handle: ApplicationHandle,
 }
 
@@ -29,17 +31,13 @@ impl WindowHandle {
                 window_redraw_listeners: vec![],
                 window_resize_listeners: vec![],
             })),
-            window: Arc::from(window),
+            window: Arc::from(Mutex::new(Some(window))),
             application_handle: application_handle.clone(),
         }
     }
 
     pub fn id(&self) -> WindowId {
         self.id
-    }
-
-    pub(crate) fn window(&self) -> Arc<dyn Window> {
-        self.window.clone()
     }
 
     pub fn request_surface_size(&self, surface_size: Size) {
@@ -79,12 +77,22 @@ impl WindowHandle {
         self.data.lock().outer_position
     }
 
+    pub fn set_cursor(&self, cursor: impl Into<Cursor>) {
+        if let Some(window) = self.window.lock().as_ref() {
+            window.set_cursor(cursor.into());
+        }
+    }
+
     pub fn add_redraw_listener(&self, listener: WindowRedrawRequestedListener) {
         self.data.lock().window_redraw_listeners.push(listener);
     }
 
     pub fn add_resized_listener(&self, listener: WindowResizedListener) {
         self.data.lock().window_resize_listeners.push(listener);
+    }
+
+    pub fn close_window(&self) {
+        let _ = self.window.lock().take();
     }
 }
 
@@ -183,6 +191,19 @@ pub extern "C" fn winit_window_handle_get_position(
         .log();
 }
 
+/// Must be called from a UI thread
+#[no_mangle]
+pub extern "C" fn winit_window_handle_set_cursor_icon(
+    window: *mut ValueBox<WindowHandle>,
+    cursor: WinitCursorIcon,
+) {
+    window
+        .with_ref_ok(|window| {
+            window.set_cursor(CursorIcon::from(cursor));
+        })
+        .log();
+}
+
 #[no_mangle]
 pub extern "C" fn winit_window_handle_request_surface_size(
     window: *mut ValueBox<WindowHandle>,
@@ -199,7 +220,14 @@ pub extern "C" fn winit_window_handle_request_surface_size(
 #[no_mangle]
 pub extern "C" fn winit_window_handle_request_redraw(window: *mut ValueBox<WindowHandle>) {
     window
-        .with_ref_ok(|window| window.window().request_redraw())
+        .with_ref(|window| {
+            window
+                .window
+                .lock()
+                .as_ref()
+                .ok_or_else(|| anyhow!("Window is closed").into())
+                .map(|window| window.request_redraw())
+        })
         .log();
 }
 
@@ -230,6 +258,15 @@ pub extern "C" fn winit_window_handle_add_resize_listener(
 }
 
 /// Must be called from a UI thread
+#[no_mangle]
+pub fn winit_window_handle_close(window_handle: *mut ValueBox<WindowHandle>) {
+    window_handle
+        .take_value()
+        .map(|window_handle| window_handle.close_window())
+        .log();
+}
+
+/// Must be called from a UI thread
 #[cfg(target_os = "macos")]
 #[no_mangle]
 pub extern "C" fn winit_window_handle_get_ns_view(
@@ -239,8 +276,14 @@ pub extern "C" fn winit_window_handle_get_ns_view(
         .with_ref(|window| {
             window
                 .window
-                .window_handle()
-                .map_err(|error| anyhow!(error).into())
+                .lock()
+                .as_ref()
+                .ok_or_else(|| anyhow!("Window is closed").into())
+                .and_then(|window| {
+                    window
+                        .window_handle()
+                        .map_err(|error| anyhow!(error).into())
+                })
                 .and_then(|handle| match handle.as_raw() {
                     RawWindowHandle::AppKit(handle) => Ok(handle.ns_view.as_ptr()),
                     handle => Err(anyhow!("Expected an AppKit, got {:?}", handle).into()),

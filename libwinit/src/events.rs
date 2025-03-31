@@ -53,7 +53,9 @@ pub fn convert_event(event: WindowEvent, window: &WindowHandle) -> Vec<Box<dyn W
             vec![Box::new(surface_resized_event)]
         }
         WindowEvent::Moved(_) => vec![],
-        WindowEvent::CloseRequested => vec![],
+        WindowEvent::CloseRequested => {
+            vec![Box::new(WinitWindowCloseRequestedEvent)]
+        }
         WindowEvent::Destroyed => vec![],
         WindowEvent::Focused(_) => vec![],
         WindowEvent::KeyboardInput {
@@ -61,8 +63,6 @@ pub fn convert_event(event: WindowEvent, window: &WindowHandle) -> Vec<Box<dyn W
             is_synthetic,
             ..
         } => {
-            debug!("KeyboardInput {:?}", event);
-
             let mut keyboard_input = WinitEventKeyboardInput::default();
             match event.state {
                 ElementState::Pressed => {
@@ -80,7 +80,8 @@ pub fn convert_event(event: WindowEvent, window: &WindowHandle) -> Vec<Box<dyn W
                 }
                 Key::Character(ch) => {
                     keyboard_input.key_type = WinitKeyType::Character;
-                    keyboard_input.character_key = ValueBox::new(StringBox::from_string(ch.to_string())).into_raw();
+                    keyboard_input.character_key =
+                        ValueBox::new(StringBox::from_string(ch.to_string())).into_raw();
                 }
                 _ => {
                     keyboard_input.key_type = WinitKeyType::Unknown;
@@ -241,6 +242,16 @@ pub fn convert_event(event: WindowEvent, window: &WindowHandle) -> Vec<Box<dyn W
 
 #[derive(Debug, Default)]
 #[repr(C)]
+pub struct WinitWindowCloseRequestedEvent;
+
+impl WinitEvent for WinitWindowCloseRequestedEvent {
+    fn event_type(&self) -> WinitEventType {
+        WinitEventType::WindowEventCloseRequested
+    }
+}
+
+#[derive(Debug, Default)]
+#[repr(C)]
 pub struct WinitTouchEvent {
     device_id: i64,
     phase: WinitEventTouchPhase,
@@ -379,7 +390,7 @@ impl Drop for WinitEventKeyboardInput {
 pub enum WinitKeyType {
     Unknown,
     Named,
-    Character
+    Character,
 }
 
 impl Default for WinitKeyType {
@@ -391,7 +402,7 @@ impl Default for WinitKeyType {
 #[derive(Debug)]
 #[repr(C)]
 pub struct WinitEventReceivedText {
-    text: *mut ValueBox<StringBox>
+    text: *mut ValueBox<StringBox>,
 }
 
 impl Drop for WinitEventReceivedText {
@@ -520,7 +531,7 @@ pub enum WinitEventType {
     UserEvent,
     Winit30WindowEventModifiersChanged,
     Winit30WindowEventKeyboardInput,
-    Winit30WindowEventReceivedText
+    Winit30WindowEventReceivedText,
 }
 
 impl Default for WinitEventType {

@@ -13,9 +13,11 @@ mod signallers;
 mod window;
 mod window_attributes;
 mod keyboard;
+mod cursor;
 
 pub use actions::*;
 pub use application::*;
+pub use cursor::*;
 pub use events::*;
 pub use signallers::*;
 pub use window::*;
