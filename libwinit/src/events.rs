@@ -90,9 +90,19 @@ pub fn convert_event(event: WindowEvent, window: &WindowHandle) -> Vec<Box<dyn W
             keyboard_input.key_location = WinitKeyLocation::from(event.location);
             keyboard_input.is_synthetic = is_synthetic;
 
-            if event.state == ElementState::Pressed {}
+            let mut events = vec![Box::new(keyboard_input) as Box<dyn WinitEvent>];
 
-            vec![Box::new(keyboard_input)]
+            if event.state == ElementState::Pressed {
+                if let Some(text) = event.text_with_all_modifiers {
+                    let text_event = WinitEventReceivedText {
+                        text: ValueBox::new(StringBox::from_string(text.to_string())).into_raw(),
+                    };
+
+                    events.push(Box::new(text_event) as Box<dyn WinitEvent>);
+                }
+            }
+
+            events
         }
         WindowEvent::ModifiersChanged(modifiers) => {
             let modifiers_changed = WinitEventModifiersChanged {
@@ -378,14 +388,24 @@ impl Default for WinitKeyType {
     }
 }
 
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug)]
 #[repr(C)]
-pub struct WinitEventReceivedCharacter {
-    length: usize,
-    byte_1: u8,
-    byte_2: u8,
-    byte_3: u8,
-    byte_4: u8,
+pub struct WinitEventReceivedText {
+    text: *mut ValueBox<StringBox>
+}
+
+impl Drop for WinitEventReceivedText {
+    fn drop(&mut self) {
+        if !self.text.is_null() {
+            self.text.release();
+        }
+    }
+}
+
+impl WinitEvent for WinitEventReceivedText {
+    fn event_type(&self) -> WinitEventType {
+        WinitEventType::Winit30WindowEventReceivedText
+    }
 }
 
 #[derive(Debug, Copy, Clone, Default)]
@@ -499,7 +519,8 @@ pub enum WinitEventType {
     ModifiersChanged,
     UserEvent,
     Winit30WindowEventModifiersChanged,
-    Winit30WindowEventKeyboardInput
+    Winit30WindowEventKeyboardInput,
+    Winit30WindowEventReceivedText
 }
 
 impl Default for WinitEventType {
