@@ -5,9 +5,11 @@ use geometry_box::{PointBox, SizeBox};
 use parking_lot::Mutex;
 use std::os::raw::c_void;
 use std::sync::Arc;
-use value_box::{ReturnBoxerResult, ValueBox, ValueBoxPointer};
+use value_box::{BoxerError, ReturnBoxerResult, ValueBox, ValueBoxPointer};
 use winit::dpi::{PhysicalPosition, PhysicalSize, Size};
-use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+use winit::raw_window_handle::{
+    HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle,
+};
 use winit::window::{Cursor, CursorIcon, Window, WindowId};
 
 #[derive(Debug, Clone)]
@@ -266,11 +268,9 @@ pub fn winit_window_handle_close(window_handle: *mut ValueBox<WindowHandle>) {
         .log();
 }
 
-/// Must be called from a UI thread
-#[cfg(target_os = "macos")]
-#[no_mangle]
-pub extern "C" fn winit_window_handle_get_ns_view(
+fn with_window_handle(
     window: *mut ValueBox<WindowHandle>,
+    f: impl FnOnce(RawWindowHandle) -> Result<*mut c_void, BoxerError>,
 ) -> *mut c_void {
     window
         .with_ref(|window| {
@@ -284,12 +284,104 @@ pub extern "C" fn winit_window_handle_get_ns_view(
                         .window_handle()
                         .map_err(|error| anyhow!(error).into())
                 })
-                .and_then(|handle| match handle.as_raw() {
-                    RawWindowHandle::AppKit(handle) => Ok(handle.ns_view.as_ptr()),
-                    handle => Err(anyhow!("Expected an AppKit, got {:?}", handle).into()),
-                })
+                .and_then(|handle| f(handle.as_raw()))
         })
         .or_log(std::ptr::null_mut())
+}
+
+#[allow(dead_code)]
+fn with_display_handle(
+    window: *mut ValueBox<WindowHandle>,
+    f: impl FnOnce(RawDisplayHandle) -> Result<*mut c_void, BoxerError>,
+) -> *mut c_void {
+    window
+        .with_ref(|window| {
+            window
+                .window
+                .lock()
+                .as_ref()
+                .ok_or_else(|| anyhow!("Window is closed").into())
+                .and_then(|window| {
+                    window
+                        .display_handle()
+                        .map_err(|error| anyhow!(error).into())
+                })
+                .and_then(|handle| f(handle.as_raw()))
+        })
+        .or_log(std::ptr::null_mut())
+}
+
+/// Must be called from a UI thread
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn winit_window_handle_get_ns_view(
+    window: *mut ValueBox<WindowHandle>,
+) -> *mut c_void {
+    with_window_handle(window, |handle| match handle {
+        RawWindowHandle::AppKit(handle) => Ok(handle.ns_view.as_ptr()),
+        handle => Err(anyhow!("Expected an AppKit, got {:?}", handle).into()),
+    })
+}
+
+/// Must be called from a UI thread
+#[cfg(target_os = "windows")]
+#[no_mangle]
+pub extern "C" fn winit_window_handle_get_hwnd(
+    window: *mut ValueBox<WindowHandle>,
+) -> *mut std::ffi::c_void {
+    with_window_handle(window, |handle| match handle {
+        RawWindowHandle::Win32(handle) => Ok(unsafe { std::mem::transmute(handle.hwnd) }),
+        handle => Err(anyhow!("Expected a Win32, got {:?}", handle).into()),
+    })
+}
+
+/// Must be called from a UI thread
+#[cfg(x11_platform)]
+#[no_mangle]
+pub extern "C" fn winit_window_handle_get_xlib_display(
+    window: *mut ValueBox<WindowHandle>,
+) -> *mut std::ffi::c_void {
+    with_display_handle(window, |handle| match handle {
+        RawDisplayHandle::Xlib(handle) => Ok(handle
+            .display
+            .map(|display| display.as_ptr())
+            .unwrap_or(std::ptr::null_mut())),
+        handle => Err(anyhow!("Expected an Xlib, got {:?}", handle).into()),
+    })
+}
+
+/// Must be called from a UI thread
+#[cfg(x11_platform)]
+#[no_mangle]
+pub extern "C" fn winit_window_handle_get_xlib_window(
+    window: *mut ValueBox<WindowHandle>,
+) -> *mut std::ffi::c_void {
+    with_window_handle(window, |handle| match handle {
+        RawWindowHandle::Xlib(handle) => Ok(unsafe { std::mem::transmute(handle.window) }),
+        handle => Err(anyhow!("Expected an Xlib, got {:?}", handle).into()),
+    })
+}
+
+#[cfg(wayland_platform)]
+#[no_mangle]
+pub extern "C" fn winit_window_handle_get_wayland_surface(
+    window: *mut ValueBox<WindowHandle>,
+) -> *mut std::ffi::c_void {
+    with_window_handle(window, |handle| match handle {
+        RawWindowHandle::Wayland(handle) => Ok(handle.surface.as_ptr()),
+        handle => Err(anyhow!("Expected a Wayland, got {:?}", handle).into()),
+    })
+}
+
+#[cfg(wayland_platform)]
+#[no_mangle]
+pub extern "C" fn winit_window_handle_get_wayland_display(
+    window: *mut ValueBox<WindowHandle>,
+) -> *mut std::ffi::c_void {
+    with_display_handle(window, |handle| match handle {
+        RawDisplayHandle::Wayland(handle) => Ok(handle.display.as_ptr()),
+        handle => Err(anyhow!("Expected a Wayland, got {:?}", handle).into()),
+    })
 }
 
 #[no_mangle]
