@@ -1,10 +1,12 @@
 use crate::WindowHandle;
 use std::os::raw::c_void;
-use winit::window::WindowAttributes;
+use winit::dpi::Size;
+use winit::window::{WindowAttributes, WindowId};
 
 pub enum ApplicationAction {
     FunctionCall(FunctionCallAction),
-    CreateWindow(CreateWindowAction)
+    CreateWindow(CreateWindowAction),
+    RequestWindowSurfaceSize(RequestWindowSurfaceSizeAction)
 }
 
 pub struct FunctionCallAction {
@@ -20,3 +22,7 @@ pub struct CreateWindowAction {
     pub callback: Box<dyn FnOnce(WindowHandle) + 'static>,
 }
 
+pub struct RequestWindowSurfaceSizeAction {
+    pub surface_size: Size,
+    pub window_id: WindowId
+}

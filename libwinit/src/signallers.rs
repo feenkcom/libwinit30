@@ -45,6 +45,24 @@ impl SemaphoreSignaller {
 }
 
 #[no_mangle]
+pub fn winit_wakeup_signaller_new(
+    callback: unsafe extern "C" fn(*const c_void),
+    thunk: *const c_void,
+) -> *mut ValueBox<WakeUpSignaller> {
+    value_box!(WakeUpSignaller::new(callback, thunk)).into_raw()
+}
+
+#[no_mangle]
+pub fn winit_wakeup_signaller_release(signaller: *mut ValueBox<WakeUpSignaller>) {
+    signaller.release();
+}
+
+#[no_mangle]
+pub fn winit_semaphore_signaller_release(signaller: *mut ValueBox<SemaphoreSignaller>) {
+    signaller.release();
+}
+
+#[no_mangle]
 pub fn winit_semaphore_signaller_new(
     semaphore_callback: unsafe extern "C" fn(usize, *const c_void),
     semaphore_index: usize,
@@ -56,9 +74,4 @@ pub fn winit_semaphore_signaller_new(
         semaphore_thunk
     ))
     .into_raw()
-}
-
-#[no_mangle]
-pub fn winit_semaphore_signaller_release(signaller: *mut ValueBox<SemaphoreSignaller>) {
-    signaller.release();
 }
