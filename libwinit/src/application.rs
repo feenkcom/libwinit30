@@ -23,8 +23,17 @@ pub struct ApplicationBuilder {
 
 impl ApplicationBuilder {
     pub fn new() -> Self {
+        #[allow(unused_mut)]
+        let mut event_loop_builder = EventLoop::builder();
+
+        #[cfg(windows_platform)]
+        {
+            use winit::platform::windows::EventLoopBuilderExtWindows;
+            event_loop_builder.with_any_thread(true);
+        }
+
         Self {
-            event_loop_builder: EventLoop::builder(),
+            event_loop_builder,
             semaphore_signaller: None,
             wakeup_signallers: Default::default(),
         }
