@@ -10,7 +10,7 @@ use winit::dpi::{LogicalSize, PhysicalPosition};
 use winit::event::{
     ButtonSource, ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent,
 };
-use winit::keyboard::Key;
+use winit::keyboard::{Key, ModifiersKeyState};
 use winit::window::WindowId;
 
 #[derive(Clone)]
@@ -52,12 +52,19 @@ pub fn convert_event(event: WindowEvent, window: &WindowHandle) -> Vec<Box<dyn W
 
             vec![Box::new(surface_resized_event)]
         }
-        WindowEvent::Moved(_) => vec![],
+        WindowEvent::Moved(position) => vec![Box::new(WinitWindowMovedEvent {
+            x: position.x,
+            y: position.y,
+        })],
         WindowEvent::CloseRequested => {
             vec![Box::new(WinitWindowCloseRequestedEvent)]
         }
         WindowEvent::Destroyed => vec![],
-        WindowEvent::Focused(_) => vec![],
+        WindowEvent::Focused(focused) => {
+            vec![Box::new(WinitWindowFocusedEvent {
+                is_focused: focused,
+            })]
+        }
         WindowEvent::KeyboardInput {
             event,
             is_synthetic,
@@ -111,6 +118,14 @@ pub fn convert_event(event: WindowEvent, window: &WindowHandle) -> Vec<Box<dyn W
                 ctrl: modifiers.state().control_key(),
                 alt: modifiers.state().alt_key(),
                 logo: modifiers.state().super_key(),
+                left_shift: modifiers.lshift_state().into(),
+                right_shift: modifiers.rshift_state().into(),
+                left_ctrl: modifiers.lcontrol_state().into(),
+                right_ctrl: modifiers.rcontrol_state().into(),
+                left_alt: modifiers.lalt_state().into(),
+                right_alt: modifiers.ralt_state().into(),
+                left_logo: modifiers.lsuper_state().into(),
+                right_logo: modifiers.rsuper_state().into(),
             };
             vec![Box::new(modifiers_changed)]
         }
@@ -337,10 +352,22 @@ pub struct WinitWindowMovedEvent {
     y: i32,
 }
 
+impl WinitEvent for WinitWindowMovedEvent {
+    fn event_type(&self) -> WinitEventType {
+        WinitEventType::WindowEventMoved
+    }
+}
+
 #[derive(Debug, Copy, Clone, Default)]
 #[repr(C)]
 pub struct WinitWindowFocusedEvent {
     is_focused: bool,
+}
+
+impl WinitEvent for WinitWindowFocusedEvent {
+    fn event_type(&self) -> WinitEventType {
+        WinitEventType::WindowEventFocused
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -427,7 +454,7 @@ pub struct WinitMouseScrollDelta {
     y: f64,
 }
 
-#[derive(Default, Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct WinitEventModifiersChanged {
     /// The "shift" key
@@ -440,6 +467,37 @@ pub struct WinitEventModifiersChanged {
     ///
     /// This is the "windows" key on PC and "command" key on Mac.
     logo: bool,
+
+    left_shift: WinitModifierKeyState,
+    right_shift: WinitModifierKeyState,
+    left_ctrl: WinitModifierKeyState,
+    right_ctrl: WinitModifierKeyState,
+    left_alt: WinitModifierKeyState,
+    right_alt: WinitModifierKeyState,
+    left_logo: WinitModifierKeyState,
+    right_logo: WinitModifierKeyState,
+}
+
+#[derive(Debug, Copy, Clone)]
+#[repr(u8)]
+pub enum WinitModifierKeyState {
+    Unknown,
+    Pressed,
+}
+
+impl From<ModifiersKeyState> for WinitModifierKeyState {
+    fn from(value: ModifiersKeyState) -> Self {
+        match value {
+            ModifiersKeyState::Unknown => WinitModifierKeyState::Unknown,
+            ModifiersKeyState::Pressed => WinitModifierKeyState::Pressed,
+        }
+    }
+}
+
+impl Default for WinitModifierKeyState {
+    fn default() -> Self {
+        Self::Unknown
+    }
 }
 
 impl WinitEvent for WinitEventModifiersChanged {
