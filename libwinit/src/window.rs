@@ -3,10 +3,13 @@ use crate::{
 };
 use geometry_box::{PointBox, SizeBox};
 use parking_lot::Mutex;
+use raw_window_handle_extensions::{VeryRawDisplayHandle, VeryRawWindowHandle};
+use std::error::Error;
 use std::os::raw::c_void;
 use std::sync::Arc;
 use value_box::{BoxerError, ReturnBoxerResult, ValueBox, ValueBoxPointer};
 use winit::dpi::{PhysicalPosition, PhysicalSize, Size};
+use winit::monitor::MonitorHandle;
 use winit::raw_window_handle::{
     HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
@@ -93,8 +96,47 @@ impl WindowHandle {
         self.data.lock().window_resize_listeners.push(listener);
     }
 
+    pub fn focus_window(&self) {
+        if let Some(window) = self.window.lock().as_ref() {
+            window.focus_window();
+        }
+    }
+
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
+        self.window
+            .lock()
+            .as_ref()
+            .and_then(|window| window.current_monitor())
+    }
+
     pub fn close_window(&self) {
         let _ = self.window.lock().take();
+    }
+
+    pub fn raw_window_handle(&self) -> Result<RawWindowHandle, Box<dyn Error>> {
+        self.window
+            .lock()
+            .as_ref()
+            .ok_or_else(|| anyhow!("Window is closed").into())
+            .and_then(|window| {
+                window
+                    .window_handle()
+                    .map(|handle| handle.as_raw())
+                    .map_err(|error| Box::new(error).into())
+            })
+    }
+
+    pub fn raw_display_handle(&self) -> Result<RawDisplayHandle, Box<dyn Error>> {
+        self.window
+            .lock()
+            .as_ref()
+            .ok_or_else(|| anyhow!("Window is closed").into())
+            .and_then(|window| {
+                window
+                    .display_handle()
+                    .map(|handle| handle.as_raw())
+                    .map_err(|error| Box::new(error).into())
+            })
     }
 }
 
@@ -147,14 +189,16 @@ impl WindowResizedListener {
 }
 
 #[no_mangle]
-pub fn winit_window_handle_get_id(window_handle: *mut ValueBox<WindowHandle>) -> usize {
+pub extern "C" fn winit_window_handle_get_id(window_handle: *mut ValueBox<WindowHandle>) -> usize {
     window_handle
         .with_ref_ok(|window_handle| window_handle.id().into_raw())
         .or_log(0)
 }
 
 #[no_mangle]
-pub fn winit_window_handle_get_scale_factor(window_handle: *mut ValueBox<WindowHandle>) -> f64 {
+pub extern "C" fn winit_window_handle_get_scale_factor(
+    window_handle: *mut ValueBox<WindowHandle>,
+) -> f64 {
     window_handle
         .with_ref_ok(|window_handle| window_handle.scale_factor())
         .or_log(1.0)
@@ -259,9 +303,28 @@ pub extern "C" fn winit_window_handle_add_resize_listener(
         .log();
 }
 
+#[no_mangle]
+pub extern "C" fn winit_window_handle_focus_window(window: *mut ValueBox<WindowHandle>) {
+    window.with_ref_ok(|window| window.focus_window()).log();
+}
+
+#[no_mangle]
+pub extern "C" fn winit_window_handle_current_monitor(
+    window: *mut ValueBox<WindowHandle>,
+) -> *mut ValueBox<MonitorHandle> {
+    window
+        .with_ref_ok(|window| {
+            window
+                .current_monitor()
+                .map(|monitor| ValueBox::new(monitor).into_raw())
+                .unwrap_or(std::ptr::null_mut())
+        })
+        .or_log(std::ptr::null_mut())
+}
+
 /// Must be called from a UI thread
 #[no_mangle]
-pub fn winit_window_handle_close(window_handle: *mut ValueBox<WindowHandle>) {
+pub extern "C" fn winit_window_handle_close(window_handle: *mut ValueBox<WindowHandle>) {
     window_handle
         .take_value()
         .map(|window_handle| window_handle.close_window())
@@ -308,6 +371,26 @@ fn with_display_handle(
                 })
                 .and_then(|handle| f(handle.as_raw()))
         })
+        .or_log(std::ptr::null_mut())
+}
+
+#[no_mangle]
+pub extern "C" fn winit_window_handle_raw_window_handle(
+    window: *mut ValueBox<WindowHandle>,
+) -> *mut VeryRawWindowHandle {
+    window
+        .with_ref(|window| window.raw_window_handle().map_err(|error| error.into()))
+        .map(|handle| VeryRawWindowHandle::from(handle).into())
+        .or_log(std::ptr::null_mut())
+}
+
+#[no_mangle]
+pub extern "C" fn winit_window_handle_raw_display_handle(
+    window: *mut ValueBox<WindowHandle>,
+) -> *mut VeryRawDisplayHandle {
+    window
+        .with_ref(|window| window.raw_display_handle().map_err(|error| error.into()))
+        .map(|handle| VeryRawDisplayHandle::from(handle).into())
         .or_log(std::ptr::null_mut())
 }
 

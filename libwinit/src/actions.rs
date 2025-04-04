@@ -6,7 +6,7 @@ use winit::window::{WindowAttributes, WindowId};
 pub enum ApplicationAction {
     FunctionCall(FunctionCallAction),
     CreateWindow(CreateWindowAction),
-    RequestWindowSurfaceSize(RequestWindowSurfaceSizeAction)
+    RequestWindowSurfaceSize(RequestWindowSurfaceSizeAction),
 }
 
 pub struct FunctionCallAction {
@@ -24,5 +24,5 @@ pub struct CreateWindowAction {
 
 pub struct RequestWindowSurfaceSizeAction {
     pub surface_size: Size,
-    pub window_id: WindowId
+    pub window_id: WindowId,
 }

@@ -8,21 +8,23 @@ extern crate log;
 extern crate value_box;
 mod actions;
 mod application;
+mod cursor;
 mod events;
+mod keyboard;
+mod monitor;
 mod signallers;
 mod window;
 mod window_attributes;
-mod keyboard;
-mod cursor;
 
 pub use actions::*;
 pub use application::*;
 pub use cursor::*;
 pub use events::*;
+pub use keyboard::*;
+pub use monitor::*;
 pub use signallers::*;
 pub use window::*;
 pub use window_attributes::*;
-pub use keyboard::*;
 
 pub use value_box_ffi::*;
 

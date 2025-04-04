@@ -915,6 +915,7 @@ dependencies = [
  "geometry-box",
  "log",
  "parking_lot",
+ "raw-window-handle-extensions",
  "string-box",
  "value-box",
  "value-box-ffi",
@@ -1310,6 +1311,15 @@ name = "raw-window-handle"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20675572f6f24e9e76ef639bc5552774ed45f1c30e2951e1e99c59888861c539"
+
+[[package]]
+name = "raw-window-handle-extensions"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44be392ea1033555333a2ec8b9985aede6c2c71fc6e4d25189d4ac732a555012"
+dependencies = [
+ "raw-window-handle",
+]
 
 [[package]]
 name = "redox_syscall"
