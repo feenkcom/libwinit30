@@ -4,15 +4,14 @@ use crate::{
 };
 use parking_lot::Mutex;
 use std::collections::HashMap;
-use std::error::Error;
 use std::os::raw::c_void;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use value_box::{ReturnBoxerResult, ValueBox, ValueBoxPointer};
 use winit::application::ApplicationHandler;
-use winit::error::EventLoopError;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder, EventLoopProxy};
+use winit::raw_window_handle::{HasDisplayHandle, RawDisplayHandle};
 use winit::window::{WindowAttributes, WindowId};
 
 pub struct ApplicationBuilder {
@@ -47,9 +46,10 @@ impl ApplicationBuilder {
         self.semaphore_signaller = Some(semaphore);
     }
 
-    pub fn build(mut self) -> Result<(Application, ApplicationHandle), EventLoopError> {
+    pub fn build(mut self) -> anyhow::Result<(Application, ApplicationHandle)> {
         let (sender, receiver) = mpsc::channel();
         let event_loop = self.event_loop_builder.build()?;
+        let display_handle = event_loop.display_handle()?.as_raw();
 
         let events = ApplicationEvents::new();
 
@@ -57,6 +57,7 @@ impl ApplicationBuilder {
             sender,
             event_loop: event_loop.create_proxy(),
             events,
+            event_loop_type: WinitEventLoopType::from(display_handle),
         };
 
         let application = Application {
@@ -101,6 +102,7 @@ pub struct ApplicationHandle {
     sender: Sender<ApplicationAction>,
     event_loop: EventLoopProxy,
     events: ApplicationEvents,
+    event_loop_type: WinitEventLoopType,
 }
 
 impl ApplicationHandle {
@@ -130,6 +132,10 @@ impl ApplicationHandle {
 
     pub fn pop_event(&self) -> Option<WinitWindowEvent> {
         self.events.pop_event()
+    }
+
+    pub fn get_type(&self) -> WinitEventLoopType {
+        self.event_loop_type
     }
 }
 
@@ -227,6 +233,28 @@ impl ApplicationHandler for RunningApplication {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum WinitEventLoopType {
+    Windows,
+    MacOS,
+    X11,
+    Wayland,
+    Unknown,
+}
+
+impl From<RawDisplayHandle> for WinitEventLoopType {
+    fn from(value: RawDisplayHandle) -> Self {
+        match value {
+            RawDisplayHandle::AppKit(_) => Self::MacOS,
+            RawDisplayHandle::Xlib(_) => Self::X11,
+            RawDisplayHandle::Wayland(_) => Self::Wayland,
+            RawDisplayHandle::Windows(_) => Self::Windows,
+            _ => Self::Unknown,
+        }
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn winit_application_builder_new() -> *mut ValueBox<ApplicationBuilder> {
     value_box!(ApplicationBuilder::new()).into_raw()
@@ -275,7 +303,7 @@ pub extern "C" fn winit_application_builder_build(
                     *application_ptr = value_box!(application).into_raw();
                     *application_handle_ptr = value_box!(application_handle).into_raw();
                 })
-                .map_err(|error| (Box::new(error) as Box<dyn Error>).into())
+                .map_err(|error| error.into())
         })
         .log();
 }
@@ -364,6 +392,16 @@ pub extern "C" fn winit_application_handle_pop_event(
                 .unwrap_or_else(|| std::ptr::null_mut())
         })
         .or_log(std::ptr::null_mut())
+}
+
+/// Must be called from the inside of the `run` method of the [`PollingEventLoop`].
+#[no_mangle]
+pub extern "C" fn winit_application_handle_release_get_type(
+    application_handle: *mut ValueBox<ApplicationHandle>,
+) -> WinitEventLoopType {
+    application_handle
+        .with_ref_ok(|application_handle| application_handle.get_type())
+        .or_log(WinitEventLoopType::Unknown)
 }
 
 #[no_mangle]
