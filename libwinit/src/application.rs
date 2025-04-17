@@ -222,6 +222,11 @@ impl ApplicationHandler for RunningApplication {
                     window_handle.on_window_resized(size);
                 }
             }
+            WindowEvent::Moved(position) => {
+                if let Some(window_handle) = self.windows.lock().get(&window_id) {
+                    window_handle.on_window_moved(position);
+                }
+            }
             WindowEvent::RedrawRequested => {
                 if let Some(window_handle) = self.windows.lock().get(&window_id) {
                     window_handle.on_window_redraw();
@@ -394,7 +399,6 @@ pub extern "C" fn winit_application_handle_pop_event(
         .or_log(std::ptr::null_mut())
 }
 
-/// Must be called from the inside of the `run` method of the [`PollingEventLoop`].
 #[no_mangle]
 pub extern "C" fn winit_application_handle_release_get_type(
     application_handle: *mut ValueBox<ApplicationHandle>,

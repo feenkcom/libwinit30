@@ -8,7 +8,7 @@ use std::error::Error;
 use std::os::raw::c_void;
 use std::sync::Arc;
 use value_box::{BoxerError, ReturnBoxerResult, ValueBox, ValueBoxPointer};
-use winit::dpi::{PhysicalPosition, PhysicalSize, Size};
+use winit::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use winit::monitor::MonitorHandle;
 use winit::raw_window_handle::{
     HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle,
@@ -63,6 +63,11 @@ impl WindowHandle {
         }
     }
 
+    pub fn on_window_moved(&self, position: &PhysicalPosition<i32>) {
+        let mut lock = self.data.lock();
+        lock.outer_position = position.clone();
+    }
+
     pub fn on_window_redraw(&self) {
         let lock = self.data.lock();
         for listener in &lock.window_redraw_listeners {
@@ -80,6 +85,12 @@ impl WindowHandle {
 
     pub fn outer_position(&self) -> PhysicalPosition<i32> {
         self.data.lock().outer_position
+    }
+
+    pub fn set_outer_position(&self, position: Position) {
+        if let Some(window) = self.window.lock().as_ref() {
+            window.set_outer_position(position);
+        }
     }
 
     pub fn set_cursor(&self, cursor: impl Into<Cursor>) {
@@ -233,6 +244,19 @@ pub extern "C" fn winit_window_handle_get_position(
                 position.x = window_position.x;
                 position.y = window_position.y;
             })
+        })
+        .log();
+}
+
+#[no_mangle]
+pub extern "C" fn winit_window_handle_set_outer_position(
+    window: *mut ValueBox<WindowHandle>,
+    x: i32,
+    y: i32,
+) {
+    window
+        .with_ref_ok(|window| {
+            window.set_outer_position(Position::Physical(PhysicalPosition::new(x, y)))
         })
         .log();
 }
