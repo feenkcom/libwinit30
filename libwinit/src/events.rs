@@ -8,7 +8,7 @@ use string_box::StringBox;
 use value_box::{ValueBox, ValueBoxPointer};
 use winit::dpi::{LogicalSize, PhysicalPosition};
 use winit::event::{
-    ButtonSource, ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent,
+    ButtonSource, ElementState, Ime, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent,
 };
 use winit::keyboard::{Key, ModifiersKeyState};
 use winit::window::WindowId;
@@ -111,6 +111,13 @@ pub fn convert_event(event: WindowEvent, window: &WindowHandle) -> Vec<Box<dyn W
             }
 
             events
+        }
+        WindowEvent::Ime(Ime::Commit(string)) => {
+            let text_event = WinitEventReceivedText {
+                text: ValueBox::new(StringBox::from_string(string)).into_raw(),
+            };
+
+            vec![Box::new(text_event)]
         }
         WindowEvent::ModifiersChanged(modifiers) => {
             let modifiers_changed = WinitEventModifiersChanged {

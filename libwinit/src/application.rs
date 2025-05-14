@@ -174,6 +174,8 @@ impl RunningApplication {
             }
             ApplicationAction::CreateWindow(action) => {
                 if let Ok(window) = event_loop.create_window(action.window_attributes) {
+                    window.set_ime_allowed(true);
+
                     let window_handle = WindowHandle::for_window(&self.application_handle, window);
                     self.windows
                         .lock()
