@@ -17,6 +17,7 @@ macro_rules! map_keys {(
     }
 
     impl From<winit::keyboard::NamedKey> for VirtualKeyCode {
+        #[allow(deprecated)]
         fn from(key: winit::keyboard::NamedKey) -> Self {
             match key {
                 $(
@@ -68,24 +69,22 @@ map_keys! {
     /// The Symbol modifier key (used on some virtual keyboards).
     Symbol,
     SymbolLock,
-    // Legacy modifier key. Also called "Super" in certain places.
-    Meta,
     // Legacy modifier key.
+    #[deprecated = "marked as legacy in the spec, use Meta instead"]
+    Super,
+    // Legacy modifier key.
+    #[deprecated = "marked as legacy in the spec, use Meta instead"]
     Hyper,
-    /// Used to enable "super" modifier function for interpreting concurrent or subsequent keyboard
+    /// Used to enable "meta" modifier function for interpreting concurrent or subsequent keyboard
     /// input. This key value is used for the "Windows Logo" key and the Apple `Command` or `⌘`
     /// key.
-    ///
-    /// Note: In some contexts (e.g. the Web) this is referred to as the "Meta" key.
-    Super,
+    Meta,
     /// The `Enter` or `↵` key. Used to activate current selection or accept current input. This
     /// key value is also used for the `Return` (Macintosh numpad) key. This key value is also
     /// used for the Android `KEYCODE_DPAD_CENTER`.
     Enter,
     /// The Horizontal Tabulation `Tab` key.
     Tab,
-    /// Used in text to insert a space between words. Usually located below the character keys.
-    Space,
     /// Navigate or traverse downward. (`KEYCODE_DPAD_DOWN`)
     ArrowDown,
     /// Navigate or traverse leftward. (`KEYCODE_DPAD_LEFT`)
@@ -141,7 +140,7 @@ map_keys! {
     Attn,
     Cancel,
     /// Show the application’s context menu.
-    /// This key is commonly found between the right `Super` key and the right `Control` key.
+    /// This key is commonly found between the right `Meta` key and the right `Control` key.
     ContextMenu,
     /// The `Esc` key. This key was originally used to initiate an escape sequence, but is
     /// now more generally used to exit or "escape" the current context, such as closing a dialog
@@ -509,7 +508,7 @@ map_keys! {
     Dimmer,
     /// Swap video sources. (`VK_DISPLAY_SWAP`)
     DisplaySwap,
-    /// Select Digital Video Rrecorder. (`KEYCODE_DVR`)
+    /// Select Digital Video Recorder. (`KEYCODE_DVR`)
     DVR,
     /// Exit the current application. (`VK_EXIT`)
     Exit,
@@ -734,7 +733,7 @@ map_keys! {
     F35,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[repr(u8)]
 pub enum WinitKeyLocation {
     Standard,

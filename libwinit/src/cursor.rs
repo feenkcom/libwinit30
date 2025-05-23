@@ -1,4 +1,4 @@
-use winit::window::CursorIcon;
+use winit::cursor::CursorIcon;
 
 #[derive(Debug, Copy, Clone)]
 #[repr(u32)]

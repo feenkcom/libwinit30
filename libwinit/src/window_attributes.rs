@@ -1,6 +1,4 @@
 use winit::dpi::LogicalSize;
-#[cfg(target_os = "macos")]
-use winit::platform::macos::WindowAttributesExtMacOS;
 
 use string_box::StringBox;
 use value_box::{ReturnBoxerResult, ValueBox, ValueBoxPointer};
@@ -125,12 +123,16 @@ pub extern "C" fn winit_window_attributes_with_full_size(
     window_attributes: *mut ValueBox<WindowAttributes>,
     with_full_size: bool,
 ) {
+    use winit::platform::macos::WindowAttributesMacOS;
+
     window_attributes
         .replace_value(|window_attributes| {
-            window_attributes
+            let macos_attributes = WindowAttributesMacOS::default()
                 .with_titlebar_transparent(with_full_size)
-                .with_fullsize_content_view(with_full_size)
                 .with_title_hidden(with_full_size)
+                .with_fullsize_content_view(with_full_size);
+
+            window_attributes.with_platform_attributes(Box::new(macos_attributes))
         })
         .log();
 }

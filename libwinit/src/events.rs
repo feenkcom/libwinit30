@@ -10,7 +10,7 @@ use winit::dpi::{LogicalSize, PhysicalPosition};
 use winit::event::{
     ButtonSource, ElementState, Ime, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent,
 };
-use winit::keyboard::{Key, ModifiersKeyState};
+use winit::keyboard::{Key, KeyLocation, ModifiersKeyState};
 use winit::window::WindowId;
 
 #[derive(Clone)]
@@ -95,6 +95,8 @@ pub fn convert_event(event: WindowEvent, window: &WindowHandle) -> Vec<Box<dyn W
                 }
             }
 
+            if event.location == KeyLocation::Numpad && event.text_with_all_modifiers.is_some() {}
+
             keyboard_input.key_location = WinitKeyLocation::from(event.location);
             keyboard_input.is_synthetic = is_synthetic;
 
@@ -124,7 +126,8 @@ pub fn convert_event(event: WindowEvent, window: &WindowHandle) -> Vec<Box<dyn W
                 shift: modifiers.state().shift_key(),
                 ctrl: modifiers.state().control_key(),
                 alt: modifiers.state().alt_key(),
-                logo: modifiers.state().super_key(),
+                logo: modifiers.state().meta_key(),
+                num_lock: modifiers.state().num_lock_key(),
                 left_shift: modifiers.lshift_state().into(),
                 right_shift: modifiers.rshift_state().into(),
                 left_ctrl: modifiers.lcontrol_state().into(),
@@ -474,6 +477,7 @@ pub struct WinitEventModifiersChanged {
     ///
     /// This is the "windows" key on PC and "command" key on Mac.
     logo: bool,
+    num_lock: bool,
 
     left_shift: WinitModifierKeyState,
     right_shift: WinitModifierKeyState,

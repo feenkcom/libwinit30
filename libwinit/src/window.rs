@@ -8,12 +8,13 @@ use std::error::Error;
 use std::os::raw::c_void;
 use std::sync::Arc;
 use value_box::{BoxerError, ReturnBoxerResult, ValueBox, ValueBoxPointer};
+use winit::cursor::{Cursor, CursorIcon};
 use winit::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use winit::monitor::MonitorHandle;
 use winit::raw_window_handle::{
     HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
-use winit::window::{Cursor, CursorIcon, Window, WindowId};
+use winit::window::{Window, WindowId};
 
 #[derive(Debug, Clone)]
 pub struct WindowHandle {
@@ -248,6 +249,7 @@ pub extern "C" fn winit_window_handle_get_position(
         .log();
 }
 
+/// Must be called from a UI thread
 #[no_mangle]
 pub extern "C" fn winit_window_handle_set_outer_position(
     window: *mut ValueBox<WindowHandle>,
@@ -274,6 +276,7 @@ pub extern "C" fn winit_window_handle_set_cursor_icon(
         .log();
 }
 
+/// Can be called from any thread
 #[no_mangle]
 pub extern "C" fn winit_window_handle_request_surface_size(
     window: *mut ValueBox<WindowHandle>,
@@ -287,6 +290,7 @@ pub extern "C" fn winit_window_handle_request_surface_size(
         .log();
 }
 
+/// Must be called from a UI thread
 #[no_mangle]
 pub extern "C" fn winit_window_handle_request_redraw(window: *mut ValueBox<WindowHandle>) {
     window
@@ -327,6 +331,7 @@ pub extern "C" fn winit_window_handle_add_resize_listener(
         .log();
 }
 
+/// Must be called from a UI thread
 #[no_mangle]
 pub extern "C" fn winit_window_handle_focus_window(window: *mut ValueBox<WindowHandle>) {
     window.with_ref_ok(|window| window.focus_window()).log();
