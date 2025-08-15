@@ -80,7 +80,14 @@ pub fn convert_event(event: WindowEvent, window: &WindowHandle) -> Vec<Box<dyn W
                 }
             };
 
-            match event.key_without_modifiers {
+            let relevant_key = if event.location != KeyLocation::Numpad {
+                event.key_without_modifiers
+            }
+            else {
+                event.logical_key
+            };
+
+            match relevant_key {
                 Key::Named(key) => {
                     keyboard_input.key_type = WinitKeyType::Named;
                     keyboard_input.named_key = VirtualKeyCode::from(key);
@@ -94,8 +101,6 @@ pub fn convert_event(event: WindowEvent, window: &WindowHandle) -> Vec<Box<dyn W
                     keyboard_input.key_type = WinitKeyType::Unknown;
                 }
             }
-
-            if event.location == KeyLocation::Numpad && event.text_with_all_modifiers.is_some() {}
 
             keyboard_input.key_location = WinitKeyLocation::from(event.location);
             keyboard_input.is_synthetic = is_synthetic;
@@ -127,7 +132,7 @@ pub fn convert_event(event: WindowEvent, window: &WindowHandle) -> Vec<Box<dyn W
                 ctrl: modifiers.state().control_key(),
                 alt: modifiers.state().alt_key(),
                 logo: modifiers.state().meta_key(),
-                num_lock: modifiers.state().num_lock_key(),
+                num_lock: false,//modifiers.state().num_lock_key(),
                 left_shift: modifiers.lshift_state().into(),
                 right_shift: modifiers.rshift_state().into(),
                 left_ctrl: modifiers.lcontrol_state().into(),
