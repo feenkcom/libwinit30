@@ -57,6 +57,12 @@ impl WindowHandle {
     }
 
     pub fn on_window_resized(&self, size: &PhysicalSize<u32>) {
+        // (Windows) when a window is minimized, its size is set to 0x0,
+        // while it shouldn't change, so we just ignore the event
+        if size.width == 0 && size.height == 0 {
+            return;
+        }
+
         let mut lock = self.data.lock();
         lock.surface_size = size.clone();
         for listener in &lock.window_resize_listeners {

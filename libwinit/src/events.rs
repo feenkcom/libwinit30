@@ -132,7 +132,7 @@ pub fn convert_event(event: WindowEvent, window: &WindowHandle) -> Vec<Box<dyn W
                 ctrl: modifiers.state().control_key(),
                 alt: modifiers.state().alt_key(),
                 logo: modifiers.state().meta_key(),
-                num_lock: false,//modifiers.state().num_lock_key(),
+                num_lock: false,
                 left_shift: modifiers.lshift_state().into(),
                 right_shift: modifiers.rshift_state().into(),
                 left_ctrl: modifiers.lcontrol_state().into(),
