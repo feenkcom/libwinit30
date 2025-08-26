@@ -7,6 +7,7 @@ use raw_window_handle_extensions::{VeryRawDisplayHandle, VeryRawWindowHandle};
 use std::error::Error;
 use std::os::raw::c_void;
 use std::sync::Arc;
+use string_box::StringBox;
 use value_box::{BoxerError, ReturnBoxerResult, ValueBox, ValueBoxPointer};
 use winit::cursor::{Cursor, CursorIcon};
 use winit::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
@@ -104,6 +105,16 @@ impl WindowHandle {
         if let Some(window) = self.window.lock().as_ref() {
             window.set_cursor(cursor.into());
         }
+    }
+
+    pub fn set_title(&self, title: impl AsRef<str>) {
+        if let Some(window) = self.window.lock().as_ref() {
+            window.set_title(title.as_ref());
+        }
+    }
+
+    pub fn get_title(&self) -> Option<String> {
+        self.window.lock().as_ref().map(|window| window.title())
     }
 
     pub fn add_redraw_listener(&self, listener: WindowRedrawRequestedListener) {
@@ -292,6 +303,34 @@ pub extern "C" fn winit_window_handle_request_surface_size(
     window
         .with_ref_ok(|window| {
             window.request_surface_size(Size::Physical(PhysicalSize::new(width, height)));
+        })
+        .log();
+}
+
+/// Must be called from a UI thread
+#[no_mangle]
+pub extern "C" fn winit_window_handle_set_title(
+    window: *mut ValueBox<WindowHandle>,
+    title: *mut ValueBox<StringBox>,
+) {
+    window
+        .with_ref(|window| title.with_ref_ok(|title| window.set_title(title.as_str())))
+        .log();
+}
+
+/// Must be called from a UI thread
+#[no_mangle]
+pub extern "C" fn winit_window_handle_get_title(
+    window: *mut ValueBox<WindowHandle>,
+    title: *mut ValueBox<StringBox>,
+) {
+    window
+        .with_ref(|window| {
+            title.with_mut_ok(|title_box| {
+                if let Some(title) = window.get_title() {
+                    title_box.set_string(title)
+                }
+            })
         })
         .log();
 }
