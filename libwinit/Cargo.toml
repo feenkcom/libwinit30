@@ -8,7 +8,7 @@ name = "Winit30"
 crate-type = ["cdylib"]
 
 [dependencies]
-winit = { git = "https://github.com/rust-windowing/winit.git", rev = "bd98561b38ea94f335a7188105304639215c2f27" }
+winit = { git = "https://github.com/rust-windowing/winit.git", rev = "bd98561b38ea94f335a7188105304639215c2f27", features = ["android-native-activity"] }
 log = "0.4"
 anyhow = "1.0"
 env_logger = "0.11"

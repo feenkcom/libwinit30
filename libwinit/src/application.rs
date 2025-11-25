@@ -1,6 +1,6 @@
 use crate::{
-    convert_event, ApplicationAction, ApplicationEvents, CreateWindowAction, SemaphoreSignaller,
-    WakeUpSignaller, WindowHandle, WinitEventType, WinitWindowEvent,
+    convert_event, ApplicationAction, ApplicationEvents, CreateWindowAction, FunctionCallAction,
+    SemaphoreSignaller, WakeUpSignaller, WindowHandle, WinitEventType, WinitWindowEvent,
 };
 use parking_lot::Mutex;
 use std::collections::HashMap;
@@ -36,6 +36,12 @@ impl ApplicationBuilder {
             semaphore_signaller: None,
             wakeup_signallers: Default::default(),
         }
+    }
+
+    #[cfg(android_platform)]
+    pub fn with_android_app(&mut self, app: winit::platform::android::activity::AndroidApp) {
+        use winit::platform::android::EventLoopBuilderExtAndroid;
+        self.event_loop_builder.with_android_app(app);
     }
 
     pub fn add_wakeup_signaller(&self, wake_up_signaller: WakeUpSignaller) {
@@ -276,6 +282,21 @@ pub extern "C" fn winit_application_builder_add_wakeup_signaller(
         .with_mut(|application_builder| {
             wakeup_signaller.take_value().map(|signaller| {
                 application_builder.add_wakeup_signaller(signaller);
+            })
+        })
+        .log();
+}
+
+#[cfg(android_platform)]
+#[no_mangle]
+pub extern "C" fn winit_application_builder_with_android_app(
+    application_builder: *mut ValueBox<ApplicationBuilder>,
+    android_app: *mut ValueBox<winit::platform::android::activity::AndroidApp>,
+) {
+    application_builder
+        .with_mut(|application_builder| {
+            android_app.with_clone_ok(|android_app| {
+                application_builder.with_android_app(android_app);
             })
         })
         .log();
