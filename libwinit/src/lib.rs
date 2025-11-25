@@ -35,5 +35,12 @@ pub extern "C" fn winit_test() -> bool {
 
 #[no_mangle]
 pub extern "C" fn winit_init_logger() {
-    env_logger::init();
+    if let Err(error) = env_logger::try_init() {
+        error!("Failed to initialize logger: {}", error);
+    }
 }
+
+#[no_mangle]
+#[cfg(target_os = "android")]
+// required to make shared library be loadable
+fn android_main(_app: winit::platform::android::activity::AndroidApp) {}
