@@ -291,13 +291,13 @@ pub extern "C" fn winit_application_builder_add_wakeup_signaller(
 #[no_mangle]
 pub extern "C" fn winit_application_builder_with_android_app(
     application_builder: *mut ValueBox<ApplicationBuilder>,
-    android_app: *mut ValueBox<winit::platform::android::activity::AndroidApp>,
+    android_app: *mut winit::platform::android::activity::AndroidApp,
 ) {
     application_builder
-        .with_mut(|application_builder| {
-            android_app.with_clone_ok(|android_app| {
-                application_builder.with_android_app(android_app);
-            })
+        .with_mut_ok(|application_builder| {
+            let android_app = unsafe { *Box::from_raw(android_app) };
+            println!("Assign AndroidApp: {:?}", &android_app);
+            application_builder.with_android_app(android_app);
         })
         .log();
 }
@@ -346,6 +346,24 @@ pub extern "C" fn winit_application_builder_release(
 #[no_mangle]
 pub extern "C" fn winit_application_waker_function() -> extern "C" fn(*const c_void, u32) -> bool {
     winit_application_wake
+}
+
+#[no_mangle]
+pub extern "C" fn winit_application_call_function(
+    application_handle: *const c_void,
+    callback: extern "C" fn(*const c_void),
+    thunk: *const c_void,
+) -> bool {
+    let application_handle = application_handle as *mut ValueBox<ApplicationHandle>;
+    application_handle
+        .with_ref_ok(|application_handle| {
+            application_handle.enqueue_action(ApplicationAction::FunctionCall(FunctionCallAction {
+                callback,
+                thunk,
+            }))
+        })
+        .map(|_| true)
+        .or_log(false)
 }
 
 #[no_mangle]

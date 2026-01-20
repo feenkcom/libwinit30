@@ -469,6 +469,20 @@ pub extern "C" fn winit_window_handle_raw_display_handle(
 }
 
 /// Must be called from a UI thread
+#[cfg(android_platform)]
+#[no_mangle]
+pub extern "C" fn winit_window_handle_get_android_native_window(
+    window: *mut ValueBox<WindowHandle>,
+) -> *mut c_void {
+    let handle = with_window_handle(window, |handle| match handle {
+        RawWindowHandle::AndroidNdk(handle) => Ok(handle.a_native_window.as_ptr()),
+        handle => Err(anyhow!("Expected an AndroidNdk, got {:?}", handle).into()),
+    });
+    info!("AndroidNativeWindow: {:?}", handle);
+    handle
+}
+
+/// Must be called from a UI thread
 #[cfg(target_os = "macos")]
 #[no_mangle]
 pub extern "C" fn winit_window_handle_get_ns_view(
