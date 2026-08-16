@@ -1,30 +1,29 @@
 use winit::dpi::LogicalSize;
 
 use string_box::StringBox;
-use value_box::{ReturnBoxerResult, ValueBox, ValueBoxPointer};
+use value_box::{BorrowedPtr, OwnedPtr, ReturnBoxerResult};
 use winit::window::{WindowAttributes, WindowLevel};
 
 #[no_mangle]
-pub extern "C" fn winit_window_attributes_new() -> *mut ValueBox<WindowAttributes> {
-    ValueBox::new(WindowAttributes::default()).into_raw()
+pub extern "C" fn winit_window_attributes_new() -> OwnedPtr<WindowAttributes> {
+    OwnedPtr::new(WindowAttributes::default())
 }
 
 #[no_mangle]
-pub extern "C" fn winit_window_attributes_release(
-    window_attributes: *mut ValueBox<WindowAttributes>,
-) {
-    window_attributes.release();
+pub extern "C" fn winit_window_attributes_release(window_attributes: OwnedPtr<WindowAttributes>) {
+    drop(window_attributes);
 }
 
 #[no_mangle]
 pub extern "C" fn winit_window_attributes_with_title(
-    window_attributes: *mut ValueBox<WindowAttributes>,
-    window_title: *mut ValueBox<StringBox>,
+    mut window_attributes: BorrowedPtr<WindowAttributes>,
+    window_title: BorrowedPtr<StringBox>,
 ) {
     window_title
-        .with_ref_ok(|window_title| {
-            window_attributes.replace_value(|window_attributes| {
-                window_attributes.with_title(window_title.to_string())
+        .with_ref(|window_title| {
+            window_attributes.with_mut_ok(|attrs| {
+                let taken = std::mem::take(attrs);
+                *attrs = taken.with_title(window_title.to_string());
             })
         })
         .log();
@@ -32,79 +31,96 @@ pub extern "C" fn winit_window_attributes_with_title(
 
 #[no_mangle]
 pub extern "C" fn winit_window_attributes_with_decorations(
-    window_attributes: *mut ValueBox<WindowAttributes>,
+    mut window_attributes: BorrowedPtr<WindowAttributes>,
     with_decorations: bool,
 ) {
     window_attributes
-        .replace_value(|window_attributes| window_attributes.with_decorations(with_decorations))
+        .with_mut_ok(|attrs| {
+            let taken = std::mem::take(attrs);
+            *attrs = taken.with_decorations(with_decorations);
+        })
         .log();
 }
 
 #[no_mangle]
 pub extern "C" fn winit_window_attributes_with_transparency(
-    window_attributes: *mut ValueBox<WindowAttributes>,
+    mut window_attributes: BorrowedPtr<WindowAttributes>,
     with_transparency: bool,
 ) {
     window_attributes
-        .replace_value(|window_attributes| window_attributes.with_transparent(with_transparency))
+        .with_mut_ok(|attrs| {
+            let taken = std::mem::take(attrs);
+            *attrs = taken.with_transparent(with_transparency);
+        })
         .log();
 }
 
 #[no_mangle]
 pub extern "C" fn winit_window_attributes_with_resizable(
-    window_attributes: *mut ValueBox<WindowAttributes>,
+    mut window_attributes: BorrowedPtr<WindowAttributes>,
     with_resizable: bool,
 ) {
     window_attributes
-        .replace_value(|window_attributes| window_attributes.with_resizable(with_resizable))
+        .with_mut_ok(|attrs| {
+            let taken = std::mem::take(attrs);
+            *attrs = taken.with_resizable(with_resizable);
+        })
         .log();
 }
 
 #[no_mangle]
 pub extern "C" fn winit_window_attributes_with_dimensions(
-    window_attributes: *mut ValueBox<WindowAttributes>,
+    mut window_attributes: BorrowedPtr<WindowAttributes>,
     width: f64,
     height: f64,
 ) {
     window_attributes
-        .replace_value(|window_attributes| {
-            window_attributes.with_surface_size(LogicalSize::new(width, height))
+        .with_mut_ok(|attrs| {
+            let taken = std::mem::take(attrs);
+            *attrs = taken.with_surface_size(LogicalSize::new(width, height));
         })
         .log();
 }
 
 #[no_mangle]
 pub extern "C" fn winit_window_attributes_with_maximized(
-    window_attributes: *mut ValueBox<WindowAttributes>,
+    mut window_attributes: BorrowedPtr<WindowAttributes>,
     with_maximized: bool,
 ) {
     window_attributes
-        .replace_value(|window_attributes| window_attributes.with_maximized(with_maximized))
+        .with_mut_ok(|attrs| {
+            let taken = std::mem::take(attrs);
+            *attrs = taken.with_maximized(with_maximized);
+        })
         .log();
 }
 
 #[no_mangle]
 pub extern "C" fn winit_window_attributes_with_visibility(
-    window_attributes: *mut ValueBox<WindowAttributes>,
+    mut window_attributes: BorrowedPtr<WindowAttributes>,
     with_visibility: bool,
 ) {
     window_attributes
-        .replace_value(|window_attributes| window_attributes.with_visible(with_visibility))
+        .with_mut_ok(|attrs| {
+            let taken = std::mem::take(attrs);
+            *attrs = taken.with_visible(with_visibility);
+        })
         .log();
 }
 
 #[no_mangle]
 pub extern "C" fn winit_window_attributes_with_always_on_top(
-    window_attributes: *mut ValueBox<WindowAttributes>,
+    mut window_attributes: BorrowedPtr<WindowAttributes>,
     with_always_on_top: bool,
 ) {
     window_attributes
-        .replace_value(|window_attributes| {
+        .with_mut_ok(|attrs| {
+            let taken = std::mem::take(attrs);
             let level = match with_always_on_top {
                 true => WindowLevel::AlwaysOnTop,
                 false => WindowLevel::Normal,
             };
-            window_attributes.with_window_level(level)
+            *attrs = taken.with_window_level(level);
         })
         .log();
 }
@@ -112,7 +128,7 @@ pub extern "C" fn winit_window_attributes_with_always_on_top(
 #[cfg(not(target_os = "macos"))]
 #[no_mangle]
 pub extern "C" fn winit_window_attributes_with_full_size(
-    _ptr_window_attributes: *mut ValueBox<WindowAttributes>,
+    _ptr_window_attributes: BorrowedPtr<WindowAttributes>,
     _with_full_size: bool,
 ) {
 }
@@ -120,19 +136,20 @@ pub extern "C" fn winit_window_attributes_with_full_size(
 #[cfg(target_os = "macos")]
 #[no_mangle]
 pub extern "C" fn winit_window_attributes_with_full_size(
-    window_attributes: *mut ValueBox<WindowAttributes>,
+    mut window_attributes: BorrowedPtr<WindowAttributes>,
     with_full_size: bool,
 ) {
     use winit::platform::macos::WindowAttributesMacOS;
 
     window_attributes
-        .replace_value(|window_attributes| {
+        .with_mut_ok(|attrs| {
+            let taken = std::mem::take(attrs);
             let macos_attributes = WindowAttributesMacOS::default()
                 .with_titlebar_transparent(with_full_size)
                 .with_title_hidden(with_full_size)
                 .with_fullsize_content_view(with_full_size);
 
-            window_attributes.with_platform_attributes(Box::new(macos_attributes))
+            *attrs = taken.with_platform_attributes(Box::new(macos_attributes));
         })
         .log();
 }

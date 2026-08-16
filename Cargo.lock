@@ -58,7 +58,7 @@ dependencies = [
  "ndk-context",
  "ndk-sys",
  "num_enum",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -229,7 +229,7 @@ dependencies = [
  "polling",
  "rustix 0.38.44",
  "slab",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -608,6 +608,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f0019c82dbacfeadb3a27172a48d6c1ce60d3d944577150418f5b9b43c59db6"
 
 [[package]]
+name = "geometry-box"
+version = "4.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ef72d660cf3f69e27a92a1c3e388f54d67de70d9acf863c824b32a0854266c8"
+
+[[package]]
 name = "gethostname"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -849,7 +855,7 @@ dependencies = [
  "combine",
  "jni-sys",
  "log",
- "thiserror",
+ "thiserror 1.0.69",
  "walkdir",
  "windows-sys 0.45.0",
 ]
@@ -925,11 +931,11 @@ dependencies = [
  "cfg_aliases",
  "cocoa",
  "env_logger",
- "geometry-box",
+ "geometry-box 1.0.0",
  "log",
  "parking_lot",
  "raw-window-handle-extensions",
- "string-box",
+ "string-box 1.1.1",
  "value-box",
  "value-box-ffi",
  "winit",
@@ -1011,7 +1017,7 @@ dependencies = [
  "ndk-sys",
  "num_enum",
  "raw-window-handle",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -1587,7 +1593,7 @@ dependencies = [
  "log",
  "memmap2",
  "rustix 0.38.44",
- "thiserror",
+ "thiserror 1.0.69",
  "wayland-backend",
  "wayland-client",
  "wayland-csd-frame",
@@ -1625,6 +1631,15 @@ name = "string-box"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c7521baf48cac0e8cf1a74a6b4cb3b59916d3d3ae98bda7c8582ef12b5c4bf7"
+dependencies = [
+ "widestring",
+]
+
+[[package]]
+name = "string-box"
+version = "4.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79726d389757b99ca6ce385124dc83b5625796d74b2618ddd968c00818d8dc86"
 dependencies = [
  "widestring",
 ]
@@ -1680,6 +1695,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "syn"
+version = "3.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53e9bae58849f64dfa4f5d5ae372c8341f7305f82a3868709269343628b659a3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
+
+[[package]]
 name = "synstructure"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1711,7 +1737,16 @@ version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 1.0.69",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec86235f5fcc2a73650310756d2ac5b138a5780bbbdfae3eeccec992c435ba4f"
+dependencies = [
+ "thiserror-impl 2.0.20",
 ]
 
 [[package]]
@@ -1723,6 +1758,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.114",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc04cd3e1236dd4a98afca4569f2deb3f120e5422a4023be2cb683f8486292af"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -1933,24 +1979,23 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "value-box"
-version = "2.3.3"
+version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a46766ed9f0a78b82f789cab9b0287b7573ce6a8d2d249c29265e75217d80dc"
+checksum = "b4e736fa2f6312bd82fd889543f917003a2e9b60ca435f0b61a9704405669c1e"
 dependencies = [
- "anyhow",
  "log",
- "thiserror",
+ "thiserror 2.0.20",
  "user-error",
 ]
 
 [[package]]
 name = "value-box-ffi"
-version = "1.2.0"
+version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "256cde5c50339a64c3944d2f60313b6e29e7b5bea73dbfce4a15a4287fa2aacf"
+checksum = "acb7c24afcf81b56b02b4baebcace622389eede38c3ee8dd10fe289b6ee469d9"
 dependencies = [
- "geometry-box",
- "string-box",
+ "geometry-box 4.1.0",
+ "string-box 4.1.0",
  "value-box",
 ]
 

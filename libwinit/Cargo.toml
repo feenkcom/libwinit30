@@ -13,10 +13,10 @@ log = "0.4"
 anyhow = "1.0"
 env_logger = "0.11"
 parking_lot = "0.12"
-value-box = {  version = "2.3", features = ["anyhow"] }
+value-box = { version = "4.1" }
 string-box = "1.1"
 geometry-box = "1.0"
-value-box-ffi = { version = "1.2", features = [ "geometry-box", "string-box" ] }
+value-box-ffi = { version = "4.1", features = [ "geometry-box", "string-box" ] }
 raw-window-handle-extensions = "0.6"
 
 [target.'cfg(target_os = "macos")'.dependencies]

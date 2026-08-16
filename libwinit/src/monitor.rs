@@ -1,10 +1,10 @@
 use geometry_box::SizeBox;
-use value_box::{ReturnBoxerResult, ValueBox, ValueBoxPointer};
+use value_box::{BorrowedPtr, OwnedPtr, ReturnBoxerResult};
 use winit::monitor::MonitorHandle;
 
 #[no_mangle]
 pub extern "C" fn winit_monitor_get_hidpi_factor(
-    monitor_handle: *mut ValueBox<MonitorHandle>,
+    monitor_handle: BorrowedPtr<MonitorHandle>,
 ) -> f64 {
     monitor_handle
         .with_ref_ok(|monitor_handle| monitor_handle.scale_factor())
@@ -13,8 +13,8 @@ pub extern "C" fn winit_monitor_get_hidpi_factor(
 
 #[no_mangle]
 pub extern "C" fn winit_monitor_get_size(
-    monitor_handle: *mut ValueBox<MonitorHandle>,
-    size: *mut ValueBox<SizeBox<u32>>,
+    monitor_handle: BorrowedPtr<MonitorHandle>,
+    mut size: BorrowedPtr<SizeBox<u32>>,
 ) {
     monitor_handle
         .with_ref(|monitor_handle| {
@@ -30,6 +30,6 @@ pub extern "C" fn winit_monitor_get_size(
 }
 
 #[no_mangle]
-pub extern "C" fn winit_monitor_drop(ptr: *mut ValueBox<MonitorHandle>) {
-    ptr.release();
+pub extern "C" fn winit_monitor_drop(ptr: OwnedPtr<MonitorHandle>) {
+    drop(ptr);
 }

@@ -4,8 +4,6 @@
 extern crate anyhow;
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate value_box;
 mod actions;
 mod application;
 mod cursor;

@@ -5,7 +5,7 @@ use std::fmt::{Debug, Formatter};
 use std::os::raw::c_void;
 use std::sync::Arc;
 use string_box::StringBox;
-use value_box::{ValueBox, ValueBoxPointer};
+use value_box::{BorrowedPtr, OwnedPtr, ReturnBoxerResult};
 use winit::dpi::{LogicalSize, PhysicalPosition};
 use winit::event::{
     ButtonSource, ElementState, Ime, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent,
@@ -94,8 +94,7 @@ pub fn convert_event(event: WindowEvent, window: &WindowHandle) -> Vec<Box<dyn W
                 }
                 Key::Character(ch) => {
                     keyboard_input.key_type = WinitKeyType::Character;
-                    keyboard_input.character_key =
-                        ValueBox::new(StringBox::from_string(ch.to_string())).into_raw();
+                    keyboard_input.character_key = Some(ch.to_string());
                 }
                 _ => {
                     keyboard_input.key_type = WinitKeyType::Unknown;
@@ -110,7 +109,7 @@ pub fn convert_event(event: WindowEvent, window: &WindowHandle) -> Vec<Box<dyn W
             if event.state == ElementState::Pressed {
                 if let Some(text) = event.text_with_all_modifiers {
                     let text_event = WinitEventReceivedText {
-                        text: ValueBox::new(StringBox::from_string(text.to_string())).into_raw(),
+                        text: text.to_string(),
                     };
 
                     events.push(Box::new(text_event) as Box<dyn WinitEvent>);
@@ -120,9 +119,7 @@ pub fn convert_event(event: WindowEvent, window: &WindowHandle) -> Vec<Box<dyn W
             events
         }
         WindowEvent::Ime(Ime::Commit(string)) => {
-            let text_event = WinitEventReceivedText {
-                text: ValueBox::new(StringBox::from_string(string)).into_raw(),
-            };
+            let text_event = WinitEventReceivedText { text: string };
 
             vec![Box::new(text_event)]
         }
@@ -271,7 +268,6 @@ pub fn convert_event(event: WindowEvent, window: &WindowHandle) -> Vec<Box<dyn W
 }
 
 #[derive(Debug, Default)]
-#[repr(C)]
 pub struct WinitWindowCloseRequestedEvent;
 
 impl WinitEvent for WinitWindowCloseRequestedEvent {
@@ -281,7 +277,6 @@ impl WinitEvent for WinitWindowCloseRequestedEvent {
 }
 
 #[derive(Debug, Default)]
-#[repr(C)]
 pub struct WinitTouchEvent {
     device_id: i64,
     phase: WinitEventTouchPhase,
@@ -292,7 +287,6 @@ pub struct WinitTouchEvent {
 }
 
 #[derive(Debug, Default)]
-#[repr(C)]
 pub struct WinitMouseWheelEvent {
     device_id: i64,
     phase: WinitEventTouchPhase,
@@ -306,7 +300,6 @@ impl WinitEvent for WinitMouseWheelEvent {
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-#[repr(C)]
 pub struct WinitMouseInputEvent {
     device_id: i64,
     state: WinitEventInputElementState,
@@ -320,7 +313,6 @@ impl WinitEvent for WinitMouseInputEvent {
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-#[repr(C)]
 pub struct WinitCursorMovedEvent {
     device_id: i64,
     x: f64,
@@ -334,7 +326,6 @@ impl WinitEvent for WinitCursorMovedEvent {
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-#[repr(C)]
 pub struct WinitWindowResizedEvent {
     width: u32,
     height: u32,
@@ -347,7 +338,6 @@ impl WinitEvent for WinitWindowResizedEvent {
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-#[repr(C)]
 pub struct WinitWindowScaleFactorChangedEvent {
     scale_factor: f64,
     width: u32,
@@ -361,7 +351,6 @@ impl WinitEvent for WinitWindowScaleFactorChangedEvent {
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-#[repr(C)]
 pub struct WinitWindowMovedEvent {
     x: i32,
     y: i32,
@@ -374,7 +363,6 @@ impl WinitEvent for WinitWindowMovedEvent {
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-#[repr(C)]
 pub struct WinitWindowFocusedEvent {
     is_focused: bool,
 }
@@ -386,7 +374,6 @@ impl WinitEvent for WinitWindowFocusedEvent {
 }
 
 #[derive(Debug, Clone)]
-#[repr(C)]
 pub struct WinitEventKeyboardInput {
     device_id: i64,
     scan_code: u32,
@@ -394,7 +381,7 @@ pub struct WinitEventKeyboardInput {
     key_type: WinitKeyType,
     key_location: WinitKeyLocation,
     named_key: VirtualKeyCode,
-    character_key: *mut ValueBox<StringBox>,
+    character_key: Option<String>,
     is_synthetic: bool,
 }
 
@@ -413,16 +400,8 @@ impl Default for WinitEventKeyboardInput {
             key_type: Default::default(),
             key_location: WinitKeyLocation::Standard,
             named_key: VirtualKeyCode::Unknown,
-            character_key: std::ptr::null_mut(),
+            character_key: None,
             is_synthetic: false,
-        }
-    }
-}
-
-impl Drop for WinitEventKeyboardInput {
-    fn drop(&mut self) {
-        if !self.character_key.is_null() {
-            self.character_key.release();
         }
     }
 }
@@ -442,17 +421,8 @@ impl Default for WinitKeyType {
 }
 
 #[derive(Debug)]
-#[repr(C)]
 pub struct WinitEventReceivedText {
-    text: *mut ValueBox<StringBox>,
-}
-
-impl Drop for WinitEventReceivedText {
-    fn drop(&mut self) {
-        if !self.text.is_null() {
-            self.text.release();
-        }
-    }
+    text: String,
 }
 
 impl WinitEvent for WinitEventReceivedText {
@@ -462,7 +432,6 @@ impl WinitEvent for WinitEventReceivedText {
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-#[repr(C)]
 pub struct WinitMouseScrollDelta {
     delta_type: WinitEventMouseScrollDeltaType,
     x: f64,
@@ -470,7 +439,6 @@ pub struct WinitMouseScrollDelta {
 }
 
 #[derive(Default, Debug, Clone, Copy)]
-#[repr(C)]
 pub struct WinitEventModifiersChanged {
     /// The "shift" key
     shift: bool,
@@ -523,7 +491,6 @@ impl WinitEvent for WinitEventModifiersChanged {
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-#[repr(C)]
 pub struct WinitEventMouseButton {
     button_type: WinitEventMouseButtonType,
     button_code: u16,
@@ -566,8 +533,8 @@ impl WinitWindowEvent {
         self.event.event_type()
     }
 
-    pub fn as_ptr(&self) -> *mut c_void {
-        self.event.as_ref() as *const _ as *mut c_void
+    pub fn into_ptr(self) -> *mut c_void {
+        Box::into_raw(self.event) as *mut c_void
     }
 }
 
@@ -659,6 +626,365 @@ impl Default for WinitEventInputElementState {
 }
 
 #[no_mangle]
-pub extern "C" fn winit_window_event_release(event: *mut ValueBox<WinitWindowEvent>) {
-    event.release();
+pub extern "C" fn winit_window_event_release(event: OwnedPtr<WinitWindowEvent>) {
+    drop(event);
+}
+
+#[no_mangle]
+pub extern "C" fn winit_window_event_get_type(
+    event: BorrowedPtr<WinitWindowEvent>,
+) -> WinitEventType {
+    event
+        .with_ref_ok(|event| event.event_type())
+        .or_log(WinitEventType::Unknown)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_window_event_get_window_id(
+    event: BorrowedPtr<WinitWindowEvent>,
+) -> usize {
+    event
+        .with_ref_ok(|event| event.window_id().into_raw())
+        .or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_window_event_get_event_ptr(
+    event: OwnedPtr<WinitWindowEvent>,
+) -> *mut c_void {
+    event
+        .with_value_ok(|e| e.into_ptr())
+        .or_log(std::ptr::null_mut())
+}
+
+// --- Event release functions ---
+
+#[no_mangle]
+pub extern "C" fn winit_event_cursor_moved_release(event: OwnedPtr<WinitCursorMovedEvent>) {
+    drop(event);
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_window_resized_release(event: OwnedPtr<WinitWindowResizedEvent>) {
+    drop(event);
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_window_moved_release(event: OwnedPtr<WinitWindowMovedEvent>) {
+    drop(event);
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_window_focused_release(event: OwnedPtr<WinitWindowFocusedEvent>) {
+    drop(event);
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_scale_factor_changed_release(event: OwnedPtr<WinitWindowScaleFactorChangedEvent>) {
+    drop(event);
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_mouse_input_release(event: OwnedPtr<WinitMouseInputEvent>) {
+    drop(event);
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_mouse_wheel_release(event: OwnedPtr<WinitMouseWheelEvent>) {
+    drop(event);
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_keyboard_input_release(event: OwnedPtr<WinitEventKeyboardInput>) {
+    drop(event);
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_received_text_release(event: OwnedPtr<WinitEventReceivedText>) {
+    drop(event);
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_modifiers_changed_release(event: OwnedPtr<WinitEventModifiersChanged>) {
+    drop(event);
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_touch_release(event: OwnedPtr<WinitTouchEvent>) {
+    drop(event);
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_close_requested_release(event: OwnedPtr<WinitWindowCloseRequestedEvent>) {
+    drop(event);
+}
+
+// --- Event accessor functions ---
+
+// CursorMoved accessors
+
+#[no_mangle]
+pub extern "C" fn winit_event_cursor_moved_device_id(event: BorrowedPtr<WinitCursorMovedEvent>) -> i64 {
+    event.with_ref_ok(|e| e.device_id).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_cursor_moved_x(event: BorrowedPtr<WinitCursorMovedEvent>) -> f64 {
+    event.with_ref_ok(|e| e.x).or_log(0.0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_cursor_moved_y(event: BorrowedPtr<WinitCursorMovedEvent>) -> f64 {
+    event.with_ref_ok(|e| e.y).or_log(0.0)
+}
+
+// WindowResized accessors
+
+#[no_mangle]
+pub extern "C" fn winit_event_window_resized_width(event: BorrowedPtr<WinitWindowResizedEvent>) -> u32 {
+    event.with_ref_ok(|e| e.width).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_window_resized_height(event: BorrowedPtr<WinitWindowResizedEvent>) -> u32 {
+    event.with_ref_ok(|e| e.height).or_log(0)
+}
+
+// WindowMoved accessors
+
+#[no_mangle]
+pub extern "C" fn winit_event_window_moved_x(event: BorrowedPtr<WinitWindowMovedEvent>) -> i32 {
+    event.with_ref_ok(|e| e.x).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_window_moved_y(event: BorrowedPtr<WinitWindowMovedEvent>) -> i32 {
+    event.with_ref_ok(|e| e.y).or_log(0)
+}
+
+// WindowFocused accessors
+
+#[no_mangle]
+pub extern "C" fn winit_event_window_focused_is_focused(event: BorrowedPtr<WinitWindowFocusedEvent>) -> bool {
+    event.with_ref_ok(|e| e.is_focused).or_log(false)
+}
+
+// ScaleFactorChanged accessors
+
+#[no_mangle]
+pub extern "C" fn winit_event_scale_factor_changed_scale_factor(event: BorrowedPtr<WinitWindowScaleFactorChangedEvent>) -> f64 {
+    event.with_ref_ok(|e| e.scale_factor).or_log(0.0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_scale_factor_changed_width(event: BorrowedPtr<WinitWindowScaleFactorChangedEvent>) -> u32 {
+    event.with_ref_ok(|e| e.width).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_scale_factor_changed_height(event: BorrowedPtr<WinitWindowScaleFactorChangedEvent>) -> u32 {
+    event.with_ref_ok(|e| e.height).or_log(0)
+}
+
+// MouseInput accessors
+
+#[no_mangle]
+pub extern "C" fn winit_event_mouse_input_device_id(event: BorrowedPtr<WinitMouseInputEvent>) -> i64 {
+    event.with_ref_ok(|e| e.device_id).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_mouse_input_state(event: BorrowedPtr<WinitMouseInputEvent>) -> u32 {
+    event.with_ref_ok(|e| e.state as u32).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_mouse_input_button_type(event: BorrowedPtr<WinitMouseInputEvent>) -> u32 {
+    event.with_ref_ok(|e| e.button.button_type as u32).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_mouse_input_button_code(event: BorrowedPtr<WinitMouseInputEvent>) -> u16 {
+    event.with_ref_ok(|e| e.button.button_code).or_log(0)
+}
+
+// MouseWheel accessors
+
+#[no_mangle]
+pub extern "C" fn winit_event_mouse_wheel_device_id(event: BorrowedPtr<WinitMouseWheelEvent>) -> i64 {
+    event.with_ref_ok(|e| e.device_id).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_mouse_wheel_phase(event: BorrowedPtr<WinitMouseWheelEvent>) -> u32 {
+    event.with_ref_ok(|e| e.phase as u32).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_mouse_wheel_delta_type(event: BorrowedPtr<WinitMouseWheelEvent>) -> u32 {
+    event.with_ref_ok(|e| e.delta.delta_type as u32).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_mouse_wheel_delta_x(event: BorrowedPtr<WinitMouseWheelEvent>) -> f64 {
+    event.with_ref_ok(|e| e.delta.x).or_log(0.0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_mouse_wheel_delta_y(event: BorrowedPtr<WinitMouseWheelEvent>) -> f64 {
+    event.with_ref_ok(|e| e.delta.y).or_log(0.0)
+}
+
+// KeyboardInput accessors
+
+#[no_mangle]
+pub extern "C" fn winit_event_keyboard_input_device_id(event: BorrowedPtr<WinitEventKeyboardInput>) -> i64 {
+    event.with_ref_ok(|e| e.device_id).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_keyboard_input_scan_code(event: BorrowedPtr<WinitEventKeyboardInput>) -> u32 {
+    event.with_ref_ok(|e| e.scan_code).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_keyboard_input_state(event: BorrowedPtr<WinitEventKeyboardInput>) -> u32 {
+    event.with_ref_ok(|e| e.state as u32).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_keyboard_input_key_type(event: BorrowedPtr<WinitEventKeyboardInput>) -> u8 {
+    event.with_ref_ok(|e| e.key_type as u8).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_keyboard_input_key_location(event: BorrowedPtr<WinitEventKeyboardInput>) -> u8 {
+    event.with_ref_ok(|e| e.key_location as u8).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_keyboard_input_named_key(event: BorrowedPtr<WinitEventKeyboardInput>) -> u32 {
+    event.with_ref_ok(|e| e.named_key as u32).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_keyboard_input_character_key(
+    event: BorrowedPtr<WinitEventKeyboardInput>,
+) -> OwnedPtr<StringBox> {
+    event
+        .with_ref_ok(|e| match &e.character_key {
+            Some(s) => OwnedPtr::new(StringBox::from_string(s.clone())),
+            None => OwnedPtr::null(),
+        })
+        .or_log(OwnedPtr::null())
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_keyboard_input_is_synthetic(event: BorrowedPtr<WinitEventKeyboardInput>) -> bool {
+    event.with_ref_ok(|e| e.is_synthetic).or_log(false)
+}
+
+// ReceivedText accessors
+
+#[no_mangle]
+pub extern "C" fn winit_event_received_text_text(
+    event: BorrowedPtr<WinitEventReceivedText>,
+) -> OwnedPtr<StringBox> {
+    event
+        .with_ref_ok(|e| OwnedPtr::new(StringBox::from_string(e.text.clone())))
+        .or_log(OwnedPtr::null())
+}
+
+// ModifiersChanged accessors
+
+#[no_mangle]
+pub extern "C" fn winit_event_modifiers_changed_shift(event: BorrowedPtr<WinitEventModifiersChanged>) -> bool {
+    event.with_ref_ok(|e| e.shift).or_log(false)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_modifiers_changed_ctrl(event: BorrowedPtr<WinitEventModifiersChanged>) -> bool {
+    event.with_ref_ok(|e| e.ctrl).or_log(false)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_modifiers_changed_alt(event: BorrowedPtr<WinitEventModifiersChanged>) -> bool {
+    event.with_ref_ok(|e| e.alt).or_log(false)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_modifiers_changed_logo(event: BorrowedPtr<WinitEventModifiersChanged>) -> bool {
+    event.with_ref_ok(|e| e.logo).or_log(false)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_modifiers_changed_num_lock(event: BorrowedPtr<WinitEventModifiersChanged>) -> bool {
+    event.with_ref_ok(|e| e.num_lock).or_log(false)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_modifiers_changed_left_shift(event: BorrowedPtr<WinitEventModifiersChanged>) -> u8 {
+    event.with_ref_ok(|e| e.left_shift as u8).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_modifiers_changed_right_shift(event: BorrowedPtr<WinitEventModifiersChanged>) -> u8 {
+    event.with_ref_ok(|e| e.right_shift as u8).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_modifiers_changed_left_ctrl(event: BorrowedPtr<WinitEventModifiersChanged>) -> u8 {
+    event.with_ref_ok(|e| e.left_ctrl as u8).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_modifiers_changed_right_ctrl(event: BorrowedPtr<WinitEventModifiersChanged>) -> u8 {
+    event.with_ref_ok(|e| e.right_ctrl as u8).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_modifiers_changed_left_alt(event: BorrowedPtr<WinitEventModifiersChanged>) -> u8 {
+    event.with_ref_ok(|e| e.left_alt as u8).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_modifiers_changed_right_alt(event: BorrowedPtr<WinitEventModifiersChanged>) -> u8 {
+    event.with_ref_ok(|e| e.right_alt as u8).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_modifiers_changed_left_logo(event: BorrowedPtr<WinitEventModifiersChanged>) -> u8 {
+    event.with_ref_ok(|e| e.left_logo as u8).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_modifiers_changed_right_logo(event: BorrowedPtr<WinitEventModifiersChanged>) -> u8 {
+    event.with_ref_ok(|e| e.right_logo as u8).or_log(0)
+}
+
+// Touch accessors
+
+#[no_mangle]
+pub extern "C" fn winit_event_touch_device_id(event: BorrowedPtr<WinitTouchEvent>) -> i64 {
+    event.with_ref_ok(|e| e.device_id).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_touch_phase(event: BorrowedPtr<WinitTouchEvent>) -> u32 {
+    event.with_ref_ok(|e| e.phase as u32).or_log(0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_touch_x(event: BorrowedPtr<WinitTouchEvent>) -> f64 {
+    event.with_ref_ok(|e| e.x).or_log(0.0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_touch_y(event: BorrowedPtr<WinitTouchEvent>) -> f64 {
+    event.with_ref_ok(|e| e.y).or_log(0.0)
+}
+
+#[no_mangle]
+pub extern "C" fn winit_event_touch_id(event: BorrowedPtr<WinitTouchEvent>) -> u64 {
+    event.with_ref_ok(|e| e.id).or_log(0)
 }

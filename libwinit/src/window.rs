@@ -8,7 +8,7 @@ use std::error::Error;
 use std::os::raw::c_void;
 use std::sync::Arc;
 use string_box::StringBox;
-use value_box::{BoxerError, ReturnBoxerResult, ValueBox, ValueBoxPointer};
+use value_box::{BoxerError, BorrowedPtr, OwnedPtr, ReturnBoxerResult};
 use winit::cursor::{Cursor, CursorIcon};
 use winit::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use winit::monitor::MonitorHandle;
@@ -218,7 +218,7 @@ impl WindowResizedListener {
 }
 
 #[no_mangle]
-pub extern "C" fn winit_window_handle_get_id(window_handle: *mut ValueBox<WindowHandle>) -> usize {
+pub extern "C" fn winit_window_handle_get_id(window_handle: BorrowedPtr<WindowHandle>) -> usize {
     window_handle
         .with_ref_ok(|window_handle| window_handle.id().into_raw())
         .or_log(0)
@@ -226,7 +226,7 @@ pub extern "C" fn winit_window_handle_get_id(window_handle: *mut ValueBox<Window
 
 #[no_mangle]
 pub extern "C" fn winit_window_handle_get_scale_factor(
-    window_handle: *mut ValueBox<WindowHandle>,
+    window_handle: BorrowedPtr<WindowHandle>,
 ) -> f64 {
     window_handle
         .with_ref_ok(|window_handle| window_handle.scale_factor())
@@ -235,8 +235,8 @@ pub extern "C" fn winit_window_handle_get_scale_factor(
 
 #[no_mangle]
 pub extern "C" fn winit_window_handle_get_surface_size(
-    window: *mut ValueBox<WindowHandle>,
-    surface_size: *mut ValueBox<SizeBox<u32>>,
+    window: BorrowedPtr<WindowHandle>,
+    mut surface_size: BorrowedPtr<SizeBox<u32>>,
 ) {
     window
         .with_ref(|window| {
@@ -252,8 +252,8 @@ pub extern "C" fn winit_window_handle_get_surface_size(
 /// Get the outer position of the window. Can be called from any thread.
 #[no_mangle]
 pub extern "C" fn winit_window_handle_get_position(
-    window: *mut ValueBox<WindowHandle>,
-    position: *mut ValueBox<PointBox<i32>>,
+    window: BorrowedPtr<WindowHandle>,
+    mut position: BorrowedPtr<PointBox<i32>>,
 ) {
     window
         .with_ref(|window_ref| {
@@ -269,7 +269,7 @@ pub extern "C" fn winit_window_handle_get_position(
 /// Must be called from a UI thread
 #[no_mangle]
 pub extern "C" fn winit_window_handle_set_outer_position(
-    window: *mut ValueBox<WindowHandle>,
+    window: BorrowedPtr<WindowHandle>,
     x: i32,
     y: i32,
 ) {
@@ -283,7 +283,7 @@ pub extern "C" fn winit_window_handle_set_outer_position(
 /// Must be called from a UI thread
 #[no_mangle]
 pub extern "C" fn winit_window_handle_set_cursor_icon(
-    window: *mut ValueBox<WindowHandle>,
+    window: BorrowedPtr<WindowHandle>,
     cursor: WinitCursorIcon,
 ) {
     window
@@ -296,7 +296,7 @@ pub extern "C" fn winit_window_handle_set_cursor_icon(
 /// Can be called from any thread
 #[no_mangle]
 pub extern "C" fn winit_window_handle_request_surface_size(
-    window: *mut ValueBox<WindowHandle>,
+    window: BorrowedPtr<WindowHandle>,
     width: u32,
     height: u32,
 ) {
@@ -310,8 +310,8 @@ pub extern "C" fn winit_window_handle_request_surface_size(
 /// Must be called from a UI thread
 #[no_mangle]
 pub extern "C" fn winit_window_handle_set_title(
-    window: *mut ValueBox<WindowHandle>,
-    title: *mut ValueBox<StringBox>,
+    window: BorrowedPtr<WindowHandle>,
+    title: BorrowedPtr<StringBox>,
 ) {
     window
         .with_ref(|window| title.with_ref_ok(|title| window.set_title(title.as_str())))
@@ -321,8 +321,8 @@ pub extern "C" fn winit_window_handle_set_title(
 /// Must be called from a UI thread
 #[no_mangle]
 pub extern "C" fn winit_window_handle_get_title(
-    window: *mut ValueBox<WindowHandle>,
-    title: *mut ValueBox<StringBox>,
+    window: BorrowedPtr<WindowHandle>,
+    mut title: BorrowedPtr<StringBox>,
 ) {
     window
         .with_ref(|window| {
@@ -337,14 +337,14 @@ pub extern "C" fn winit_window_handle_get_title(
 
 /// Must be called from a UI thread
 #[no_mangle]
-pub extern "C" fn winit_window_handle_request_redraw(window: *mut ValueBox<WindowHandle>) {
+pub extern "C" fn winit_window_handle_request_redraw(window: BorrowedPtr<WindowHandle>) {
     window
         .with_ref(|window| {
             window
                 .window
                 .lock()
                 .as_ref()
-                .ok_or_else(|| anyhow!("Window is closed").into())
+                .ok_or_else(|| BoxerError::from("Window is closed"))
                 .map(|window| window.request_redraw())
         })
         .log();
@@ -352,7 +352,7 @@ pub extern "C" fn winit_window_handle_request_redraw(window: *mut ValueBox<Windo
 
 #[no_mangle]
 pub extern "C" fn winit_window_handle_add_redraw_listener(
-    window: *mut ValueBox<WindowHandle>,
+    window: BorrowedPtr<WindowHandle>,
     callback: unsafe extern "C" fn(*const c_void),
     thunk: *const c_void,
 ) {
@@ -365,7 +365,7 @@ pub extern "C" fn winit_window_handle_add_redraw_listener(
 
 #[no_mangle]
 pub extern "C" fn winit_window_handle_add_resize_listener(
-    window: *mut ValueBox<WindowHandle>,
+    window: BorrowedPtr<WindowHandle>,
     callback: unsafe extern "C" fn(*const c_void, u32, u32),
     thunk: *const c_void,
 ) {
@@ -378,35 +378,34 @@ pub extern "C" fn winit_window_handle_add_resize_listener(
 
 /// Must be called from a UI thread
 #[no_mangle]
-pub extern "C" fn winit_window_handle_focus_window(window: *mut ValueBox<WindowHandle>) {
+pub extern "C" fn winit_window_handle_focus_window(window: BorrowedPtr<WindowHandle>) {
     window.with_ref_ok(|window| window.focus_window()).log();
 }
 
 #[no_mangle]
 pub extern "C" fn winit_window_handle_current_monitor(
-    window: *mut ValueBox<WindowHandle>,
-) -> *mut ValueBox<MonitorHandle> {
+    window: BorrowedPtr<WindowHandle>,
+) -> OwnedPtr<MonitorHandle> {
     window
         .with_ref_ok(|window| {
             window
                 .current_monitor()
-                .map(|monitor| ValueBox::new(monitor).into_raw())
-                .unwrap_or(std::ptr::null_mut())
+                .map(|monitor| OwnedPtr::new(monitor))
+                .unwrap_or(OwnedPtr::null())
         })
-        .or_log(std::ptr::null_mut())
+        .or_log(OwnedPtr::null())
 }
 
 /// Must be called from a UI thread
 #[no_mangle]
-pub extern "C" fn winit_window_handle_close(window_handle: *mut ValueBox<WindowHandle>) {
+pub extern "C" fn winit_window_handle_close(window_handle: OwnedPtr<WindowHandle>) {
     window_handle
-        .take_value()
-        .map(|window_handle| window_handle.close_window())
+        .with_value_ok(|window_handle| window_handle.close_window())
         .log();
 }
 
 fn with_window_handle(
-    window: *mut ValueBox<WindowHandle>,
+    window: BorrowedPtr<WindowHandle>,
     f: impl FnOnce(RawWindowHandle) -> Result<*mut c_void, BoxerError>,
 ) -> *mut c_void {
     window
@@ -415,11 +414,11 @@ fn with_window_handle(
                 .window
                 .lock()
                 .as_ref()
-                .ok_or_else(|| anyhow!("Window is closed").into())
+                .ok_or_else(|| BoxerError::from("Window is closed"))
                 .and_then(|window| {
                     window
                         .window_handle()
-                        .map_err(|error| anyhow!(error).into())
+                        .map_err(|error| BoxerError::from(error.to_string()))
                 })
                 .and_then(|handle| f(handle.as_raw()))
         })
@@ -428,7 +427,7 @@ fn with_window_handle(
 
 #[allow(dead_code)]
 fn with_display_handle(
-    window: *mut ValueBox<WindowHandle>,
+    window: BorrowedPtr<WindowHandle>,
     f: impl FnOnce(RawDisplayHandle) -> Result<*mut c_void, BoxerError>,
 ) -> *mut c_void {
     window
@@ -437,11 +436,11 @@ fn with_display_handle(
                 .window
                 .lock()
                 .as_ref()
-                .ok_or_else(|| anyhow!("Window is closed").into())
+                .ok_or_else(|| BoxerError::from("Window is closed"))
                 .and_then(|window| {
                     window
                         .display_handle()
-                        .map_err(|error| anyhow!(error).into())
+                        .map_err(|error| BoxerError::from(error.to_string()))
                 })
                 .and_then(|handle| f(handle.as_raw()))
         })
@@ -450,20 +449,20 @@ fn with_display_handle(
 
 #[no_mangle]
 pub extern "C" fn winit_window_handle_raw_window_handle(
-    window: *mut ValueBox<WindowHandle>,
+    window: BorrowedPtr<WindowHandle>,
 ) -> *mut VeryRawWindowHandle {
     window
-        .with_ref(|window| window.raw_window_handle().map_err(|error| error.into()))
+        .with_ref(|window| window.raw_window_handle().map_err(|error| BoxerError::from(error.to_string())))
         .map(|handle| VeryRawWindowHandle::from(handle).into())
         .or_log(std::ptr::null_mut())
 }
 
 #[no_mangle]
 pub extern "C" fn winit_window_handle_raw_display_handle(
-    window: *mut ValueBox<WindowHandle>,
+    window: BorrowedPtr<WindowHandle>,
 ) -> *mut VeryRawDisplayHandle {
     window
-        .with_ref(|window| window.raw_display_handle().map_err(|error| error.into()))
+        .with_ref(|window| window.raw_display_handle().map_err(|error| BoxerError::from(error.to_string())))
         .map(|handle| VeryRawDisplayHandle::from(handle).into())
         .or_log(std::ptr::null_mut())
 }
@@ -472,11 +471,11 @@ pub extern "C" fn winit_window_handle_raw_display_handle(
 #[cfg(android_platform)]
 #[no_mangle]
 pub extern "C" fn winit_window_handle_get_android_native_window(
-    window: *mut ValueBox<WindowHandle>,
+    window: BorrowedPtr<WindowHandle>,
 ) -> *mut c_void {
     let handle = with_window_handle(window, |handle| match handle {
         RawWindowHandle::AndroidNdk(handle) => Ok(handle.a_native_window.as_ptr()),
-        handle => Err(anyhow!("Expected an AndroidNdk, got {:?}", handle).into()),
+        handle => Err(BoxerError::from(format!("Expected an AndroidNdk, got {:?}", handle))),
     });
     info!("AndroidNativeWindow: {:?}", handle);
     handle
@@ -486,11 +485,11 @@ pub extern "C" fn winit_window_handle_get_android_native_window(
 #[cfg(target_os = "macos")]
 #[no_mangle]
 pub extern "C" fn winit_window_handle_get_ns_view(
-    window: *mut ValueBox<WindowHandle>,
+    window: BorrowedPtr<WindowHandle>,
 ) -> *mut c_void {
     with_window_handle(window, |handle| match handle {
         RawWindowHandle::AppKit(handle) => Ok(handle.ns_view.as_ptr()),
-        handle => Err(anyhow!("Expected an AppKit, got {:?}", handle).into()),
+        handle => Err(BoxerError::from(format!("Expected an AppKit, got {:?}", handle))),
     })
 }
 
@@ -498,11 +497,11 @@ pub extern "C" fn winit_window_handle_get_ns_view(
 #[cfg(target_os = "windows")]
 #[no_mangle]
 pub extern "C" fn winit_window_handle_get_hwnd(
-    window: *mut ValueBox<WindowHandle>,
+    window: BorrowedPtr<WindowHandle>,
 ) -> *mut std::ffi::c_void {
     with_window_handle(window, |handle| match handle {
         RawWindowHandle::Win32(handle) => Ok(unsafe { std::mem::transmute(handle.hwnd) }),
-        handle => Err(anyhow!("Expected a Win32, got {:?}", handle).into()),
+        handle => Err(BoxerError::from(format!("Expected a Win32, got {:?}", handle))),
     })
 }
 
@@ -510,14 +509,14 @@ pub extern "C" fn winit_window_handle_get_hwnd(
 #[cfg(x11_platform)]
 #[no_mangle]
 pub extern "C" fn winit_window_handle_get_xlib_display(
-    window: *mut ValueBox<WindowHandle>,
+    window: BorrowedPtr<WindowHandle>,
 ) -> *mut std::ffi::c_void {
     with_display_handle(window, |handle| match handle {
         RawDisplayHandle::Xlib(handle) => Ok(handle
             .display
             .map(|display| display.as_ptr())
             .unwrap_or(std::ptr::null_mut())),
-        handle => Err(anyhow!("Expected an Xlib, got {:?}", handle).into()),
+        handle => Err(BoxerError::from(format!("Expected an Xlib, got {:?}", handle))),
     })
 }
 
@@ -525,37 +524,37 @@ pub extern "C" fn winit_window_handle_get_xlib_display(
 #[cfg(x11_platform)]
 #[no_mangle]
 pub extern "C" fn winit_window_handle_get_xlib_window(
-    window: *mut ValueBox<WindowHandle>,
+    window: BorrowedPtr<WindowHandle>,
 ) -> *mut std::ffi::c_void {
     with_window_handle(window, |handle| match handle {
         RawWindowHandle::Xlib(handle) => Ok(unsafe { std::mem::transmute(handle.window) }),
-        handle => Err(anyhow!("Expected an Xlib, got {:?}", handle).into()),
+        handle => Err(BoxerError::from(format!("Expected an Xlib, got {:?}", handle))),
     })
 }
 
 #[cfg(wayland_platform)]
 #[no_mangle]
 pub extern "C" fn winit_window_handle_get_wayland_surface(
-    window: *mut ValueBox<WindowHandle>,
+    window: BorrowedPtr<WindowHandle>,
 ) -> *mut std::ffi::c_void {
     with_window_handle(window, |handle| match handle {
         RawWindowHandle::Wayland(handle) => Ok(handle.surface.as_ptr()),
-        handle => Err(anyhow!("Expected a Wayland, got {:?}", handle).into()),
+        handle => Err(BoxerError::from(format!("Expected a Wayland, got {:?}", handle))),
     })
 }
 
 #[cfg(wayland_platform)]
 #[no_mangle]
 pub extern "C" fn winit_window_handle_get_wayland_display(
-    window: *mut ValueBox<WindowHandle>,
+    window: BorrowedPtr<WindowHandle>,
 ) -> *mut std::ffi::c_void {
     with_display_handle(window, |handle| match handle {
         RawDisplayHandle::Wayland(handle) => Ok(handle.display.as_ptr()),
-        handle => Err(anyhow!("Expected a Wayland, got {:?}", handle).into()),
+        handle => Err(BoxerError::from(format!("Expected a Wayland, got {:?}", handle))),
     })
 }
 
 #[no_mangle]
-pub fn winit_window_handle_release(window_handle: *mut ValueBox<WindowHandle>) {
-    window_handle.release();
+pub fn winit_window_handle_release(window_handle: OwnedPtr<WindowHandle>) {
+    drop(window_handle);
 }

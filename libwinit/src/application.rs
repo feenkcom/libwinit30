@@ -1,13 +1,13 @@
 use crate::{
     convert_event, ApplicationAction, ApplicationEvents, CreateWindowAction, FunctionCallAction,
-    SemaphoreSignaller, WakeUpSignaller, WindowHandle, WinitEventType, WinitWindowEvent,
+    SemaphoreSignaller, WakeUpSignaller, WindowHandle, WinitWindowEvent,
 };
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::os::raw::c_void;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
-use value_box::{ReturnBoxerResult, ValueBox, ValueBoxPointer};
+use value_box::{BoxerError, BorrowedPtr, OwnedPtr, ReturnBoxerResult};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop, EventLoopBuilder, EventLoopProxy};
@@ -269,20 +269,22 @@ impl From<RawDisplayHandle> for WinitEventLoopType {
 }
 
 #[no_mangle]
-pub extern "C" fn winit_application_builder_new() -> *mut ValueBox<ApplicationBuilder> {
-    value_box!(ApplicationBuilder::new()).into_raw()
+pub extern "C" fn winit_application_builder_new() -> OwnedPtr<ApplicationBuilder> {
+    OwnedPtr::new(ApplicationBuilder::new())
 }
 
 #[no_mangle]
 pub extern "C" fn winit_application_builder_add_wakeup_signaller(
-    application_builder: *mut ValueBox<ApplicationBuilder>,
-    wakeup_signaller: *mut ValueBox<WakeUpSignaller>,
+    mut application_builder: BorrowedPtr<ApplicationBuilder>,
+    wakeup_signaller: OwnedPtr<WakeUpSignaller>,
 ) {
     application_builder
-        .with_mut(|application_builder| {
-            wakeup_signaller.take_value().map(|signaller| {
-                application_builder.add_wakeup_signaller(signaller);
-            })
+        .with_mut_ok(|application_builder| {
+            wakeup_signaller
+                .with_value_ok(|signaller| {
+                    application_builder.add_wakeup_signaller(signaller);
+                })
+                .log();
         })
         .log();
 }
@@ -290,7 +292,7 @@ pub extern "C" fn winit_application_builder_add_wakeup_signaller(
 #[cfg(android_platform)]
 #[no_mangle]
 pub extern "C" fn winit_application_builder_with_android_app(
-    application_builder: *mut ValueBox<ApplicationBuilder>,
+    mut application_builder: BorrowedPtr<ApplicationBuilder>,
     android_app: *mut winit::platform::android::activity::AndroidApp,
 ) {
     application_builder
@@ -304,43 +306,42 @@ pub extern "C" fn winit_application_builder_with_android_app(
 
 #[no_mangle]
 pub extern "C" fn winit_application_builder_set_semaphore_signaller(
-    application_builder: *mut ValueBox<ApplicationBuilder>,
-    semaphore_signaller: *mut ValueBox<SemaphoreSignaller>,
+    mut application_builder: BorrowedPtr<ApplicationBuilder>,
+    semaphore_signaller: OwnedPtr<SemaphoreSignaller>,
 ) {
     application_builder
-        .with_mut(|application_builder| {
-            semaphore_signaller.take_value().map(|signaller| {
-                application_builder.set_semaphore_signaller(signaller);
-            })
+        .with_mut_ok(|application_builder| {
+            semaphore_signaller
+                .with_value_ok(|signaller| {
+                    application_builder.set_semaphore_signaller(signaller);
+                })
+                .log();
         })
         .log();
 }
 
 #[no_mangle]
 pub extern "C" fn winit_application_builder_build(
-    application_builder: *mut ValueBox<ApplicationBuilder>,
-    application_ptr: *mut *mut ValueBox<Application>,
-    application_handle_ptr: *mut *mut ValueBox<ApplicationHandle>,
+    application_builder: OwnedPtr<ApplicationBuilder>,
+    application_ptr: *mut *mut Application,
+    application_handle_ptr: *mut *mut ApplicationHandle,
 ) {
     application_builder
-        .take_value()
-        .and_then(|builder| {
+        .with_value(|builder| {
             builder
                 .build()
                 .map(|(application, application_handle)| unsafe {
-                    *application_ptr = value_box!(application).into_raw();
-                    *application_handle_ptr = value_box!(application_handle).into_raw();
+                    *application_ptr = Box::into_raw(Box::new(application));
+                    *application_handle_ptr = Box::into_raw(Box::new(application_handle));
                 })
-                .map_err(|error| error.into())
+                .map_err(|error| BoxerError::from(error.to_string()))
         })
         .log();
 }
 
 #[no_mangle]
-pub extern "C" fn winit_application_builder_release(
-    application_builder: *mut ValueBox<ApplicationBuilder>,
-) {
-    application_builder.release();
+pub extern "C" fn winit_application_builder_release(application_builder: OwnedPtr<ApplicationBuilder>) {
+    drop(application_builder);
 }
 
 #[no_mangle]
@@ -354,7 +355,7 @@ pub extern "C" fn winit_application_call_function(
     callback: extern "C" fn(*const c_void),
     thunk: *const c_void,
 ) -> bool {
-    let application_handle = application_handle as *mut ValueBox<ApplicationHandle>;
+    let application_handle = unsafe { BorrowedPtr::<ApplicationHandle>::from_raw(application_handle as *mut _) };
     application_handle
         .with_ref_ok(|application_handle| {
             application_handle.enqueue_action(ApplicationAction::FunctionCall(FunctionCallAction {
@@ -368,7 +369,7 @@ pub extern "C" fn winit_application_call_function(
 
 #[no_mangle]
 pub extern "C" fn winit_application_wake(application_handle: *const c_void, _event: u32) -> bool {
-    let application_handle = application_handle as *mut ValueBox<ApplicationHandle>;
+    let application_handle = unsafe { BorrowedPtr::<ApplicationHandle>::from_raw(application_handle as *mut _) };
     application_handle
         .with_ref_ok(|application_handle| application_handle.wake_up())
         .map(|_| true)
@@ -377,32 +378,31 @@ pub extern "C" fn winit_application_wake(application_handle: *const c_void, _eve
 
 /// Run the application, must be called from a UI thread.
 #[no_mangle]
-pub extern "C" fn winit_application_run(application: *mut ValueBox<Application>) {
+pub extern "C" fn winit_application_run(application: OwnedPtr<Application>) {
     application
-        .take_value()
-        .map(|application| {
+        .with_value_ok(|application| {
             application.run();
         })
         .log();
 }
 
 #[no_mangle]
-pub extern "C" fn winit_application_release(application: *mut ValueBox<Application>) {
-    application.release();
+pub extern "C" fn winit_application_release(application: OwnedPtr<Application>) {
+    drop(application);
 }
 
 #[no_mangle]
 pub extern "C" fn winit_application_handle_create_window(
-    application_handle: *mut ValueBox<ApplicationHandle>,
-    window_attributes: *mut ValueBox<WindowAttributes>,
-    semaphore_signaller: *mut ValueBox<SemaphoreSignaller>,
-    window_handle: *mut *mut ValueBox<WindowHandle>,
+    application_handle: BorrowedPtr<ApplicationHandle>,
+    window_attributes: OwnedPtr<WindowAttributes>,
+    semaphore_signaller: BorrowedPtr<SemaphoreSignaller>,
+    window_handle: *mut *mut WindowHandle,
 ) {
     application_handle
         .with_ref(|application_handle| {
-            window_attributes.take_value().map(|window_attributes| {
+            window_attributes.with_value_ok(|window_attributes| {
                 application_handle.create_window(window_attributes, move |window| {
-                    unsafe { *window_handle = value_box!(window).into_raw() };
+                    unsafe { *window_handle = Box::into_raw(Box::new(window)) };
                     semaphore_signaller
                         .with_ref_ok(|signaller| {
                             signaller.signal();
@@ -415,34 +415,25 @@ pub extern "C" fn winit_application_handle_create_window(
 }
 
 #[no_mangle]
-pub extern "C" fn winit_application_handle_pop_event(
-    application_handle: *mut ValueBox<ApplicationHandle>,
-    window_id: *mut usize,
-    event_type: *mut WinitEventType,
-    event_ptr: *mut *mut c_void,
-) -> *mut ValueBox<WinitWindowEvent> {
+pub extern "C" fn winit_application_handle_try_pop_event(
+    application_handle: BorrowedPtr<ApplicationHandle>,
+) -> OwnedPtr<WinitWindowEvent> {
     application_handle
         .with_ref_ok(|application_handle| {
             application_handle
                 .pop_event()
                 .map(|window_event| {
                     debug!("Pop window event: {:?}", &window_event);
-
-                    unsafe {
-                        *window_id = window_event.window_id().into_raw();
-                        *event_type = window_event.event_type();
-                        *event_ptr = window_event.as_ptr();
-                    };
-                    value_box!(window_event).into_raw()
+                    OwnedPtr::new(window_event)
                 })
-                .unwrap_or_else(|| std::ptr::null_mut())
+                .unwrap_or_else(|| OwnedPtr::null())
         })
-        .or_log(std::ptr::null_mut())
+        .or_log(OwnedPtr::null())
 }
 
 #[no_mangle]
 pub extern "C" fn winit_application_handle_release_get_type(
-    application_handle: *mut ValueBox<ApplicationHandle>,
+    application_handle: BorrowedPtr<ApplicationHandle>,
 ) -> WinitEventLoopType {
     application_handle
         .with_ref_ok(|application_handle| application_handle.get_type())
@@ -450,10 +441,8 @@ pub extern "C" fn winit_application_handle_release_get_type(
 }
 
 #[no_mangle]
-pub extern "C" fn winit_application_handle_release(
-    application_handle: *mut ValueBox<ApplicationHandle>,
-) {
-    application_handle.release();
+pub extern "C" fn winit_application_handle_release(application_handle: OwnedPtr<ApplicationHandle>) {
+    drop(application_handle);
 }
 
 #[cfg(test)]

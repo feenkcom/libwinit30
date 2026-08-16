@@ -1,5 +1,5 @@
 use std::os::raw::c_void;
-use value_box::{ValueBox, ValueBoxPointer};
+use value_box::OwnedPtr;
 
 #[derive(Debug)]
 pub struct WakeUpSignaller {
@@ -48,18 +48,18 @@ impl SemaphoreSignaller {
 pub fn winit_wakeup_signaller_new(
     callback: unsafe extern "C" fn(*const c_void),
     thunk: *const c_void,
-) -> *mut ValueBox<WakeUpSignaller> {
-    value_box!(WakeUpSignaller::new(callback, thunk)).into_raw()
+) -> OwnedPtr<WakeUpSignaller> {
+    OwnedPtr::new(WakeUpSignaller::new(callback, thunk))
 }
 
 #[no_mangle]
-pub fn winit_wakeup_signaller_release(signaller: *mut ValueBox<WakeUpSignaller>) {
-    signaller.release();
+pub fn winit_wakeup_signaller_release(signaller: OwnedPtr<WakeUpSignaller>) {
+    drop(signaller);
 }
 
 #[no_mangle]
-pub fn winit_semaphore_signaller_release(signaller: *mut ValueBox<SemaphoreSignaller>) {
-    signaller.release();
+pub fn winit_semaphore_signaller_release(signaller: OwnedPtr<SemaphoreSignaller>) {
+    drop(signaller);
 }
 
 #[no_mangle]
@@ -67,11 +67,10 @@ pub fn winit_semaphore_signaller_new(
     semaphore_callback: unsafe extern "C" fn(usize, *const c_void),
     semaphore_index: usize,
     semaphore_thunk: *const c_void,
-) -> *mut ValueBox<SemaphoreSignaller> {
-    value_box!(SemaphoreSignaller::new(
+) -> OwnedPtr<SemaphoreSignaller> {
+    OwnedPtr::new(SemaphoreSignaller::new(
         semaphore_callback,
         semaphore_index,
-        semaphore_thunk
+        semaphore_thunk,
     ))
-    .into_raw()
 }
