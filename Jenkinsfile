@@ -50,24 +50,24 @@ pipeline {
         }
         stage ('Parallel build') {
             parallel {
-                stage ('MacOS x86_64') {
-                    agent {
-                        label "${MACOS_INTEL_TARGET}"
-                    }
-                    environment {
-                        TARGET = "${MACOS_INTEL_TARGET}"
-                        EXTENSION = "dylib"
-                        PATH = "$HOME/.cargo/bin:/usr/local/bin/:$PATH"
-                    }
-
-                    steps {
-                        sh "cargo run --package ${REPOSITORY_NAME}-builder --bin builder --release"
-
-                        sh "mv -f target/${TARGET}/release/lib${LIBRARY_NAME}.${EXTENSION} lib${LIBRARY_NAME}-${TARGET}.${EXTENSION}"
-
-                        stash includes: "lib${LIBRARY_NAME}-${TARGET}.${EXTENSION}", name: "${TARGET}"
-                    }
-                }
+//                 stage ('MacOS x86_64') {
+//                     agent {
+//                         label "${MACOS_INTEL_TARGET}"
+//                     }
+//                     environment {
+//                         TARGET = "${MACOS_INTEL_TARGET}"
+//                         EXTENSION = "dylib"
+//                         PATH = "$HOME/.cargo/bin:/usr/local/bin/:$PATH"
+//                     }
+// 
+//                     steps {
+//                         sh "cargo run --package ${REPOSITORY_NAME}-builder --bin builder --release"
+// 
+//                         sh "mv -f target/${TARGET}/release/lib${LIBRARY_NAME}.${EXTENSION} lib${LIBRARY_NAME}-${TARGET}.${EXTENSION}"
+// 
+//                         stash includes: "lib${LIBRARY_NAME}-${TARGET}.${EXTENSION}", name: "${TARGET}"
+//                     }
+//                 }
                 stage ('MacOS M1') {
                     agent {
                         label "${MACOS_M1_TARGET}"
@@ -202,7 +202,7 @@ pipeline {
             steps {
                 unstash "${LINUX_AMD64_TARGET}"
                 unstash "${LINUX_ARM64_TARGET}"
-                unstash "${MACOS_INTEL_TARGET}"
+                //unstash "${MACOS_INTEL_TARGET}"
                 unstash "${MACOS_M1_TARGET}"
                 unstash "${ANDROID_ARM64_TARGET}"
                 unstash "${WINDOWS_AMD64_TARGET}"
@@ -224,7 +224,6 @@ pipeline {
                         lib${LIBRARY_NAME}-${LINUX_AMD64_TARGET}.so \
                         lib${LIBRARY_NAME}-${LINUX_ARM64_TARGET}.so \
                         lib${LIBRARY_NAME}-${ANDROID_ARM64_TARGET}.so \
-                        lib${LIBRARY_NAME}-${MACOS_INTEL_TARGET}.dylib \
                         lib${LIBRARY_NAME}-${MACOS_M1_TARGET}.dylib \
                         ${LIBRARY_NAME}-${WINDOWS_AMD64_TARGET}.dll \
                         ${LIBRARY_NAME}-${WINDOWS_ARM64_TARGET}.dll """
